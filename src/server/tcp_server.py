@@ -6,12 +6,8 @@ from typing import Literal
 
 from rich.console import Console
 
-try:
-    from ..protocol_stack import EoMaccaStack
-    from .handlers import RequestHandler
-except ImportError:
-    from src.protocol_stack import EoMaccaStack  # type: ignore[no-redef]
-    from src.server.handlers import RequestHandler  # type: ignore[no-redef]
+from ..protocol_stack import EoMaccaStack
+from .handlers import RequestHandler
 
 console = Console()
 

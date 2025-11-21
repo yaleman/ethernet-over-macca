@@ -6,7 +6,7 @@ try:
     from .protocol_stack import EoMaccaStack
 except ImportError:
     # Running as script
-    from protocol_stack import EoMaccaStack  # type: ignore[no-redef]
+    from protocol_stack import EoMaccaStack  # type: ignore[import-untyped,no-redef]
 
 
 def example_basic_encapsulation() -> None:
@@ -95,7 +95,7 @@ def example_visualize_layers() -> None:
             encapsulate_dns_in_http,
         )
     except ImportError:
-        from encapsulation import (  # type: ignore[no-redef]
+        from encapsulation import (  # type: ignore[import-untyped,no-redef]
             encapsulate_ethernet_in_ip,
             encapsulate_ip_in_tcp,
             encapsulate_tcp_in_dns,

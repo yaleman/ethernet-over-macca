@@ -6,12 +6,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-try:
-    from ..protocol_stack import EoMaccaStack
-    from .ui import UI
-except ImportError:
-    from src.protocol_stack import EoMaccaStack  # type: ignore[no-redef]
-    from src.client.ui import UI  # type: ignore[no-redef]
+from ..protocol_stack import EoMaccaStack
+from .ui import UI
 
 console = Console()
 

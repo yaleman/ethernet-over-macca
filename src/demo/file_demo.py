@@ -5,12 +5,8 @@ from pathlib import Path
 
 from rich.console import Console
 
-try:
-    from ..client.tcp_client import TCPClient
-    from ..client.ui import UI
-except ImportError:
-    from src.client.tcp_client import TCPClient  # type: ignore[no-redef]
-    from src.client.ui import UI  # type: ignore[no-redef]
+from ..client.tcp_client import TCPClient
+from ..client.ui import UI
 
 console = Console()
 

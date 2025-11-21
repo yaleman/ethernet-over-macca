@@ -14,7 +14,7 @@ test:
 
 # Run type checking with mypy
 typecheck:
-    uv run mypy --strict src/
+    uv run mypy --strict src/ tests
 
 # Run linting with ruff
 lint:
