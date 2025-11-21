@@ -3,7 +3,6 @@
 import time
 from pathlib import Path
 
-import pytest
 
 from src.server.handlers import RequestHandler, Statistics
 

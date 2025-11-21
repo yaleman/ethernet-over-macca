@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from src.brainfuck_generator import (
     generate_brainfuck_for_text,

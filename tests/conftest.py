@@ -1,7 +1,6 @@
 """Shared test fixtures for EoMacca tests."""
 
 import socket
-import tempfile
 import threading
 import time
 from pathlib import Path

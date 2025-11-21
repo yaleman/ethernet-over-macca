@@ -14,7 +14,8 @@ test:
 
 # Run tests with coverage report
 test-coverage:
-    uv run pytest --cov=src --cov-report=term-missing --cov-report=html tests/ -v
+    uv run coverage run --source=src -m pytest
+    uv run coveralls
 
 # Run tests and check coverage threshold
 test-coverage-check:
