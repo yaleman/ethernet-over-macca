@@ -16,4 +16,4 @@ jobs:
         run: |
           python --version
           python -m pip install --quiet --no-cache-dir --upgrade uv
-          uv run ruff check $(basename $(pwd) | sed -E 's/-/_/g') tests
+          uv run ruff check src tests
