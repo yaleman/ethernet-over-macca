@@ -1,0 +1,25 @@
+---
+name: mypy
+
+"on":
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth:
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.12"
+      - name: Running mypy
+        run: |
+          python --version
+          python -m pip install --quiet --no-cache-dir --upgrade uv
+          uv run mypy --strict $(basename $(pwd) | sed -E 's/-/_/g') tests/
