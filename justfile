@@ -12,6 +12,14 @@ check: lint typecheck test
 test:
     uv run pytest tests/ -v
 
+# Run tests with coverage report
+test-coverage:
+    uv run pytest --cov=src --cov-report=term-missing --cov-report=html tests/ -v
+
+# Run tests and check coverage threshold
+test-coverage-check:
+    uv run pytest --cov=src --cov-fail-under=85 --cov-report=term tests/ -v
+
 # Run type checking with mypy
 typecheck:
     uv run mypy --strict src/ tests
