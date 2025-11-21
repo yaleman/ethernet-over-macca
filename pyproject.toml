@@ -1,0 +1,30 @@
+[project]
+name = "ethernet-over-macca"
+version = "0.1.0"
+description = "RFC implementation of Ethernet over IP over TCP over DNS over HTTP over TCP over IP over Ethernet"
+readme = "README.md"
+authors = [
+    { name = "James Hodgkinson", email = "james@terminaloutcomes.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "scapy>=2.5.0",
+    "dnslib>=0.9.24",
+    "reportlab>=4.0.0",
+    "flask>=3.0.0",
+    "rich>=13.0.0",
+    "colorama>=0.4.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "mypy>=1.8.0",
+    "ruff>=0.5.0",
+    "types-reportlab>=4.0.0",
+    "types-flask>=1.1.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"

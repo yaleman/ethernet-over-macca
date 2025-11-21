@@ -1,0 +1,508 @@
+
+
+
+
+Network Working Group                                      J. Hodgkinson
+Request for Comments: 9999                           Terminal Outcomes
+Category: Experimental                                     November 2025
+
+
+     A Standard for the Transmission of Ethernet Frames over IP over
+      TCP over DNS over HTTP over TCP over IP over Ethernet (EoMacca)
+
+
+Status of this Memo
+
+   This memo defines an Experimental Protocol for the Internet
+   community.  This memo does not specify an Internet standard of any
+   kind.  Distribution of this memo is unlimited.
+
+Copyright Notice
+
+   Copyright (C) The Internet Society (2025).  All Rights Reserved.
+
+Abstract
+
+   This document specifies a method for encapsulating Ethernet frames
+   within an 8-layer protocol stack consisting of: Ethernet, IP, TCP,
+   HTTP, DNS, TCP, IP, and finally Ethernet again. This protocol,
+   referred to as "Ethernet over Macca" (EoMacca), provides a highly
+   redundant, dramatically inefficient, and architecturally questionable
+   method for transmitting network packets. The primary motivation is
+   educational humor and to demonstrate that just because you can
+   encapsulate something doesn't mean you should.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . . 2
+   2.  Terminology . . . . . . . . . . . . . . . . . . . . . . . . . 3
+   3.  Protocol Specification  . . . . . . . . . . . . . . . . . . . 3
+     3.1.  Encapsulation Stack . . . . . . . . . . . . . . . . . . . 3
+     3.2.  Layer 1: Inner Ethernet Frame . . . . . . . . . . . . . . 4
+     3.3.  Layer 2: Inner IP Packet  . . . . . . . . . . . . . . . . 4
+     3.4.  Layer 3: Inner TCP Segment  . . . . . . . . . . . . . . . 5
+     3.5.  Layer 4: DNS Message  . . . . . . . . . . . . . . . . . . 5
+     3.6.  Layer 5: HTTP Request . . . . . . . . . . . . . . . . . . 6
+     3.7.  Layer 6: Outer TCP Segment  . . . . . . . . . . . . . . . 6
+     3.8.  Layer 7: Outer IP Packet  . . . . . . . . . . . . . . . . 7
+     3.9.  Layer 8: Outer Ethernet Frame . . . . . . . . . . . . . . 7
+   4.  Packet Format . . . . . . . . . . . . . . . . . . . . . . . . 8
+   5.  Implementation Considerations . . . . . . . . . . . . . . . . 9
+   6.  Performance Characteristics . . . . . . . . . . . . . . . . . 9
+   7.  Security Considerations . . . . . . . . . . . . . . . . . . .10
+   8.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .11
+   9.  References  . . . . . . . . . . . . . . . . . . . . . . . . .11
+     9.1.  Normative References  . . . . . . . . . . . . . . . . . .11
+     9.2.  Informative References  . . . . . . . . . . . . . . . . .12
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .12
+
+
+1.  Introduction
+
+   In the long and storied history of network protocols, engineers have
+   consistently pushed the boundaries of what can be encapsulated within
+   what. From IP over Avian Carriers [RFC1149] to IP over MIDI
+   [RFC6214], the networking community has demonstrated remarkable
+   creativity in tunneling protocols through unlikely mediums.
+
+   This document continues that proud tradition by proposing the most
+   gratuitously over-engineered encapsulation scheme yet devised:
+   Ethernet over IP over TCP over DNS over HTTP over TCP over IP over
+   Ethernet, affectionately known as "EoMacca" (Ethernet over
+   Matryoshka Carrier Architecture).
+
+1.1.  Motivation
+
+   The primary motivations for EoMacca are:
+
+   o  To demonstrate that protocol encapsulation can be taken to absurd
+      extremes
+
+   o  To provide a real-world example of the OSI layer cake having an
+      existential crisis
+
+   o  To answer the age-old question: "How many layers of encapsulation
+      can you add before your MTU becomes negative?"
+
+   o  To give network administrators something to laugh about during
+      packet captures
+
+   o  To prove that "because we can" is technically a valid engineering
+      rationale
+
+1.2.  Applicability
+
+   EoMacca is particularly well-suited for:
+
+   o  Educational demonstrations of protocol overhead
+
+   o  Stress-testing packet inspection tools
+
+   o  Annoying Deep Packet Inspection systems
+
+   o  Creating job security for network engineers
+
+   o  Absolutely nothing in production environments
+
+2.  Terminology
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+   document are to be interpreted as described in RFC 2119 [RFC2119].
+
+   Additionally, this document defines the following terms:
+
+   Matryoshka Packet: A packet encapsulated so many times that even
+      Wireshark needs therapy
+
+   Layer Cake: The visual representation of the EoMacca protocol stack,
+      resembling a particularly tall and unstable wedding cake
+
+   Overhead Ratio: The ratio of header bytes to payload bytes, in this
+      protocol typically exceeding 10:1
+
+   MTU Crisis: The inevitable realization that useful payload capacity
+      approaches zero
+
+3.  Protocol Specification
+
+3.1.  Encapsulation Stack
+
+   The complete EoMacca encapsulation stack, from outermost to
+   innermost, consists of:
+
+   Layer 8 (Outermost):  Standard Ethernet II frame (14-byte header)
+   Layer 7:  IPv4 or IPv6 packet (20+ byte header)
+   Layer 6:  TCP segment (20+ byte header)
+   Layer 5:  HTTP/1.1 request or response (variable header)
+   Layer 4:  DNS message (12-byte header minimum)
+   Layer 3:  Inner TCP segment (20+ byte header)
+   Layer 2:  Inner IPv4 or IPv6 packet (20+ byte header)
+   Layer 1 (Innermost):  Inner Ethernet II frame containing payload
+
+   The minimum header overhead is approximately 150 bytes, not including
+   HTTP headers, which are typically 100+ bytes. For a standard 1500-
+   byte MTU, this leaves approximately 1250 bytes for actual payload,
+   assuming you're lucky.
+
+3.2.  Layer 1: Inner Ethernet Frame
+
+   The innermost layer is a standard Ethernet II frame as defined in
+   IEEE 802.3. This frame contains the actual payload data that the
+   sender wishes to transmit.
+
+   Format:
+
+      0                   1                   2                   3
+      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                    Destination MAC Address                    |
+     |                               +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                               |    Source MAC Address         |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                                               |   EtherType   |
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+     |                             Payload                           |
+     ~                                                               ~
+     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   The entire inner Ethernet frame, including headers and payload, will
+   be treated as opaque data for encapsulation in Layer 2.
+
+3.3.  Layer 2: Inner IP Packet
+
+   The inner Ethernet frame from Layer 1 is encapsulated as the payload
+   of an IP packet. This IP packet SHOULD use private addressing
+   (10.0.0.0/8, 172.16.0.0/12, or 192.168.0.0/16) to avoid confusion
+   with the outer IP layer.
+
+   Recommended addressing:
+      Source:       10.255.255.1
+      Destination:  10.255.255.2
+      Protocol:     TCP (6)
+
+   The IP packet MUST have the Don't Fragment (DF) bit cleared to allow
+   for the inevitable fragmentation that will occur.
+
+3.4.  Layer 3: Inner TCP Segment
+
+   The inner IP packet is further encapsulated within a TCP segment.
+   This TCP connection exists purely for the purposes of this protocol
+   and does not represent an actual application-layer connection.
+
+   Recommended TCP parameters:
+      Source Port:      31337
+      Destination Port: 31338
+      Sequence Number:  Random
+      Flags:            PSH, ACK (unless first packet, then SYN)
+
+   The entire inner IP packet (including IP headers) forms the payload
+   of this TCP segment. Implementers MUST NOT attempt to establish an
+   actual TCP three-way handshake at this layer, as that way lies
+   madness.
+
+3.5.  Layer 4: DNS Message
+
+   The inner TCP segment is encoded as a TXT record response within a
+   DNS message. The TCP segment data MUST be base64-encoded to ensure
+   DNS compatibility.
+
+   DNS Message Format:
+      Transaction ID:    Random
+      Flags:             QR=1 (Response), AA=1, RD=1, RA=1
+      Questions:         1
+      Answer RRs:        1
+      Authority RRs:     0
+      Additional RRs:    0
+
+   Question Section:
+      QNAME:   "data.eomacca.example.com"
+      QTYPE:   TXT (16)
+      QCLASS:  IN (1)
+
+   Answer Section:
+      NAME:    "data.eomacca.example.com"
+      TYPE:    TXT
+      CLASS:   IN
+      TTL:     0 (MUST be zero to prevent caching)
+      RDATA:   Base64-encoded inner TCP segment
+
+   The DNS message provides a convenient container for binary data that
+   might otherwise confuse Layer 5 (HTTP).
+
+3.6.  Layer 5: HTTP Request
+
+   The DNS message from Layer 4 is transmitted as the body of an HTTP
+   POST request. This allows the protocol to traverse HTTP proxies,
+   firewalls, and the tears of network administrators.
+
+   HTTP Request Format:
+
+      POST /eomacca/v1/tunnel HTTP/1.1
+      Host: eomacca.example.com
+      Content-Type: application/dns-message
+      Content-Length: [length of DNS message]
+      User-Agent: EoMacca/1.0 (Unnecessarily Complex Protocol)
+      Connection: keep-alive
+
+      [DNS message bytes]
+
+   The HTTP layer SHOULD include a Cookie header with the value
+   "overhead=yes" to properly signal the nature of this protocol.
+
+   Servers responding to EoMacca requests MUST respond with HTTP 200 OK
+   and MAY include the header "X-Layers: too-many" for diagnostic
+   purposes.
+
+3.7.  Layer 6: Outer TCP Segment
+
+   The HTTP request is transmitted over a standard TCP connection. This
+   is a real TCP connection, complete with three-way handshake,
+   congestion control, and all the normal TCP goodness.
+
+   Recommended TCP parameters:
+      Source Port:      Ephemeral (49152-65535)
+      Destination Port: 80 or 8080
+      Window Size:      65535 (you'll need it)
+
+   Unlike the inner TCP layer (Layer 3), this TCP connection actually
+   functions as TCP was intended. This may come as a relief to
+   implementers who have made it this far.
+
+3.8.  Layer 7: Outer IP Packet
+
+   The outer TCP segment is encapsulated in a real IP packet that will
+   actually be routed across networks. This IP packet uses real,
+   routable IP addresses.
+
+   IP Parameters:
+      Protocol:     TCP (6)
+      TTL:          64 (or per local policy)
+      ToS/DSCP:     Default (or EF for extra irony)
+
+   This is the last layer where traditional routing and networking
+   actually functions as designed. Cherish it.
+
+3.9.  Layer 8: Outer Ethernet Frame
+
+   Finally, the outer IP packet is encapsulated in a standard Ethernet
+   frame for transmission on the local network segment. This is a normal
+   Ethernet frame that your network interface understands and loves.
+
+   The Ethernet frame uses the actual MAC addresses of the sending and
+   receiving (or next-hop gateway) network interfaces.
+
+   At last, the packet is ready for transmission on the wire. It has
+   only taken 8 layers of encapsulation to get here. The payload, if it
+   still exists, is now buried under approximately 250+ bytes of headers
+   like a pearl in a very, very expensive oyster.
+
+4.  Packet Format
+
+   The complete EoMacca packet structure:
+
+     +------------------------------------------------------------------+
+     | Outer Ethernet Header (14 bytes)                                |
+     +------------------------------------------------------------------+
+     | Outer IP Header (20+ bytes)                                     |
+     +------------------------------------------------------------------+
+     | Outer TCP Header (20+ bytes)                                    |
+     +------------------------------------------------------------------+
+     | HTTP Headers (~100+ bytes)                                      |
+     +------------------------------------------------------------------+
+     | DNS Header (12 bytes)                                           |
+     +------------------------------------------------------------------+
+     | DNS Question (variable, ~30 bytes)                              |
+     +------------------------------------------------------------------+
+     | DNS Answer Header (~20 bytes)                                   |
+     +------------------------------------------------------------------+
+     | Base64-encoded Inner TCP Segment (expanded by 4/3)             |
+     |   +--------------------------------------------------------------+
+     |   | Inner TCP Header (20+ bytes) [encoded]                      |
+     |   +--------------------------------------------------------------+
+     |   | Inner IP Header (20+ bytes) [encoded]                       |
+     |   +--------------------------------------------------------------+
+     |   | Inner Ethernet Header (14 bytes) [encoded]                  |
+     |   +--------------------------------------------------------------+
+     |   | Actual Payload [encoded]                                    |
+     |   +--------------------------------------------------------------+
+     +------------------------------------------------------------------+
+
+   Effective overhead: Approximately 85% headers, 15% payload, 100%
+   questionable life choices.
+
+5.  Implementation Considerations
+
+   Implementers should be aware of several practical concerns:
+
+5.1.  MTU Considerations
+
+   The minimum MTU for EoMacca is effectively 512 bytes, as attempting
+   to transmit smaller packets results in header sizes exceeding payload
+   capacity, causing a condition known as "negative payload syndrome."
+
+   Implementers MUST implement Path MTU Discovery or simply give up and
+   use very small payload sizes (recommended: 128 bytes or less).
+
+5.2.  Fragmentation
+
+   IP fragmentation is not just likely, it is inevitable. Embrace it.
+   Love it. Let it fragment your packets and your dreams of efficient
+   networking.
+
+5.3.  Performance
+
+   Don't. Just don't expect performance.
+
+6.  Performance Characteristics
+
+   Extensive testing has revealed the following performance metrics:
+
+   Throughput:     Approximately 2.3% of the underlying network capacity
+   Latency:        5-10x baseline latency due to encapsulation overhead
+   CPU Usage:      Yes, all of it
+   Memory Usage:   Substantially more than you'd expect
+   Protocol Efficiency:  -847% (negative due to overhead exceeding payload)
+
+   The protocol achieves a remarkable "bytes transmitted per useful
+   byte" ratio of approximately 7:1, meaning that for every byte of
+   actual data, 7 bytes of headers are transmitted. This is considered
+   a feature, not a bug.
+
+7.  Security Considerations
+
+   EoMacca presents several unique security considerations:
+
+7.1.  Encryption
+
+   The protocol supports encryption at multiple layers:
+
+   o  TLS can be used for the outer HTTP connection (HTTPS)
+   o  IPsec can be applied to either or both IP layers
+   o  The inner Ethernet frame could contain encrypted protocols
+
+   This allows for up to 3 simultaneous encryption layers, ensuring that
+   even if an attacker decrypts one layer, they still have two more to
+   go. This is sometimes called "security through excessive
+   encapsulation."
+
+7.2.  Authentication
+
+   Authentication can occur at:
+
+   o  The HTTP layer (Basic, Digest, or Bearer tokens)
+   o  The outer TCP layer (via TLS certificates)
+   o  The DNS layer (DNSSEC, though good luck with that)
+   o  The inner layers (via whatever the actual payload supports)
+
+7.3.  Deep Packet Inspection
+
+   EoMacca is highly resistant to Deep Packet Inspection (DPI) systems,
+   not through any clever cryptographic means, but simply because DPI
+   systems give up after the third layer of encapsulation, exhausted and
+   confused.
+
+   Network security devices attempting to inspect EoMacca traffic have
+   been observed to emit smoke, display error messages, and in one case,
+   file for early retirement.
+
+7.4.  Denial of Service
+
+   EoMacca is inherently self-limiting as a DoS vector, as the overhead
+   is so substantial that attackers exhaust their own bandwidth before
+   significantly impacting the target.
+
+7.5.  Privacy
+
+   The excessive encapsulation provides excellent privacy, as even the
+   sender often forgets what they were trying to transmit by the time
+   the packet is fully constructed.
+
+8.  IANA Considerations
+
+   This document requests the following IANA assignments:
+
+8.1.  Port Number
+
+   IANA is requested to assign a port number for EoMacca. The suggested
+   port is 9999 (TCP), which appropriately reflects the number of things
+   wrong with this protocol.
+
+8.2.  Media Type
+
+   IANA is requested to register the following media type:
+
+      Type name:  application
+      Subtype name:  eomacca
+      Required parameters:  layers=8
+      Optional parameters:  overhead=excessive
+      Encoding considerations:  Binary, base64-encoded, then binary again
+      Security considerations:  See Section 7
+      Interoperability considerations:  None, by design
+      Published specification:  This RFC
+      Applications that use this media type:  Hopefully none
+      Fragment identifier considerations:  N/A
+      Additional information:
+         Deprecated alias names:  ethernet-matryoshka
+         Magic number(s):  0xDEADBEEF
+         File extension(s):  .eomacca
+      Person & email address to contact for further information:
+         James Hodgkinson <james@terminaloutcomes.com>
+      Intended usage:  EXPERIMENTAL (please, only experimental)
+      Restrictions on usage:  Please don't use this in production
+      Author:  James Hodgkinson
+      Change controller:  IETF
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119, March 1997.
+
+   [RFC791]   Postel, J., "Internet Protocol", STD 5, RFC 791,
+              September 1981.
+
+   [RFC793]   Postel, J., "Transmission Control Protocol", STD 7,
+              RFC 793, September 1981.
+
+   [RFC1035]  Mockapetris, P., "Domain names - implementation and
+              specification", STD 13, RFC 1035, November 1987.
+
+   [RFC2616]  Fielding, R., et al., "Hypertext Transfer Protocol --
+              HTTP/1.1", RFC 2616, June 1999.
+
+   [IEEE802.3] IEEE, "IEEE Standard for Ethernet", IEEE 802.3, 2018.
+
+9.2.  Informative References
+
+   [RFC1149]  Waitzman, D., "Standard for the transmission of IP
+              datagrams on avian carriers", RFC 1149, April 1990.
+
+   [RFC2549]  Waitzman, D., "IP over Avian Carriers with Quality of
+              Service", RFC 2549, April 1999.
+
+   [RFC6214]  Carpenter, B. and R. Hinden, "Adaptation of RFC 1149 for
+              IPv6", RFC 6214, April 2011.
+
+   [RFC3514]  Bellovin, S., "The Security Flag in the IPv4 Header",
+              RFC 3514, April 2003.
+
+Author's Address
+
+   James Hodgkinson
+   Terminal Outcomes
+
+   Email: james@terminaloutcomes.com
+
+
+Full Copyright Statement
+
+   Copyright (C) The Internet Society (2025).  All Rights Reserved.
+
+   This document and translations of it may be copied and furnished to
+   others, and derivative works that comment on or otherwise explain it
+   or assist in its implementation may be prepared, copied, published
+   and distributed, in whole or in part, without restriction of any
+   kind, provided that the above copyright notice and this paragraph are
+   included on all such copies and derivative works.

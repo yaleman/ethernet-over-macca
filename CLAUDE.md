@@ -1,0 +1,1 @@
+- you can use the local command brainfuck-rs to run brainfuck files to ensure they compile and run appropriately, the command expects the filename as the argument
