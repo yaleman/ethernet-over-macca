@@ -21,7 +21,7 @@ just demo-echo
 
 ## Project Structure
 
-```
+```text
 ├── docs/
 │   ├── rfc-ethernet-over-macca.txt  # Full RFC specification (RFC 9999)
 │   └── rfc-generator.bf              # Brainfuck code that outputs the RFC
@@ -101,7 +101,7 @@ just demo-all           # Run echo, file, and ping demos
 just check              # Run lint + typecheck + tests
 just test               # Run pytest
 just lint               # Run ruff linting
-just typecheck          # Run mypy --strict
+just typecheck          # Run ty
 just format             # Format code
 
 # Demonstrations
@@ -127,7 +127,7 @@ just stats              # Show project statistics
 ## File Descriptions
 
 | File | Purpose |
-|------|---------|
+| ------ | --------- |
 | `protocol_stack.py` | Main EoMacca class, full encapsulation/decapsulation |
 | `encapsulation.py` | Individual layer functions (Ethernet->IP, IP->TCP, etc.) |
 | `tcp_server.py` | Multi-threaded TCP server, handles EoMacca packets |
@@ -148,6 +148,7 @@ just check              # Tests + linting + type checking
 ```
 
 Tests cover:
+
 - Individual layer encapsulation/decapsulation
 - Full round-trip through all 8 layers
 - Edge cases (empty payload, large payloads, binary data)
@@ -156,24 +157,28 @@ Tests cover:
 
 ## Troubleshooting
 
-**"Connection refused"**
+### "Connection refused"
+
 - Start server first: `just server-tcp echo`
 - Check port 9999 is available
 
-**"Module not found"**
+### "Module not found"
+
 - Run: `uv sync --all-extras`
 - Use Python 3.12+
 
-**Brainfuck interpreter hangs**
+### Brainfuck interpreter hangs
+
 - The BF code is 280KB, execution is slow
 - Use online interpreter or just read the PDF
 
 ## Why?
 
 Educational demonstration of:
+
 - Protocol encapsulation extremes
 - Network overhead impact
-- Python type safety (mypy --strict compliant)
+- Python type safety
 - That "because we can" is valid engineering rationale
 
 Based on the tradition of humorous technical RFCs (RFC 1149, RFC 2549, RFC 3514).

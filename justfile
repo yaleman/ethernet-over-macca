@@ -21,9 +21,9 @@ test-coverage:
 test-coverage-check:
     uv run pytest --cov=src --cov-fail-under=85 --cov-report=term tests/ -v
 
-# Run type checking with mypy
+# Run type checking
 typecheck:
-    uv run mypy --strict src/ tests
+    uv run ty check
 
 # Run linting with ruff
 lint:
