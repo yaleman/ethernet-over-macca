@@ -132,11 +132,8 @@ def main() -> None:
     """Run the TCP server."""
     import sys
 
-    mode: Literal["echo", "chat", "file", "ping"] = (
-        sys.argv[1] if len(sys.argv) > 1 else "echo"
-    )  # ty:ignore[invalid-assignment]
-
-    server = TCPServer(mode=mode)
+    mode = sys.argv[1] if len(sys.argv) > 1 else "echo"
+    server = TCPServer(mode=mode)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
     server.start()
 
 

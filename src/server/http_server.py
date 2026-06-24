@@ -25,19 +25,16 @@ class HTTPServer:
         self.handler = RequestHandler()
         self.app = Flask(__name__)
 
-        # Register routes
         self.app.route("/eomacca/v1/tunnel", methods=["POST"])(self.tunnel)
         self.app.route("/stats", methods=["GET"])(self.stats)
 
     def tunnel(self) -> Response:
         """Handle EoMacca tunnel endpoint (RFC Section 3.6)."""
-        # Check content type
         if request.content_type != "application/dns-message":
             console.print(
                 f"[yellow]Warning: Unexpected Content-Type: {request.content_type}[/yellow]"
             )
 
-        # Get the HTTP body (which should be a DNS message per RFC)
         http_body = request.get_data()
 
         console.print(
@@ -46,39 +43,20 @@ class HTTPServer:
         )
 
         try:
-            # The HTTP body contains DNS-encapsulated data
-            # We need to extract it and continue decapsulating
-            # For simplicity in this demo, we'll treat the whole HTTP request as the outer packet
+            payload = self.stack.decapsulate(http_body)
 
-            # In a real implementation, we'd reconstruct the full packet with Ethernet/IP/TCP headers
-            # For now, we'll work with just the payload extraction
-
-            # Reconstruct the full outer packet (simplified)
-            # In production, you'd get this from the actual network interface
-            full_packet = http_body  # Simplified
-
-            # Decapsulate
-            payload = self.stack.decapsulate(full_packet)
-
-            console.print(f"[green]Decapsulated payload:[/green] {len(payload)} bytes")
-
-            # Update statistics
             self.handler.stats.update_received(len(http_body), len(payload))
 
-            # Handle request
             response_payload = self.handler.handle_request(payload, self.mode)
 
-            # Encapsulate response
             response_packet = self.stack.encapsulate(response_payload)
 
             console.print(
                 f"[cyan]Sending response:[/cyan] {len(response_packet)} bytes"
             )
 
-            # Update statistics
             self.handler.stats.update_sent(len(response_packet))
 
-            # Return as HTTP response
             return Response(
                 response_packet,
                 status=200,
@@ -133,7 +111,7 @@ def main() -> None:
 
     mode: Literal["echo", "chat", "file", "ping"] = "echo"
     if len(sys.argv) > 1:
-        mode = sys.argv[1]  # type: ignore[assignment]
+        mode = sys.argv[1]  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
 
     server = HTTPServer(mode=mode)
     try:

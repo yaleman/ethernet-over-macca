@@ -189,13 +189,13 @@ class TestEdgeCases:
         """Test decapsulation with invalid Ethernet frame."""
         stack = EoMaccaStack()
 
-        with pytest.raises(Exception):  # Could be various exceptions from scapy
+        with pytest.raises(Exception):
             stack.decapsulate(b"not a valid packet")
 
     def test_very_long_payload(self) -> None:
         """Test with a very long payload."""
         stack = EoMaccaStack()
-        payload = b"A" * 10000  # 10KB payload
+        payload = b"A" * 10000
 
         encapsulated = stack.encapsulate(payload)
         recovered = stack.decapsulate(encapsulated)
@@ -213,3 +213,97 @@ class TestEdgeCases:
 
         assert recovered == payload
         assert recovered.decode("utf-8") == unicode_text
+
+
+class TestDecapsulationValidation:
+    """Test validation in decapsulation functions."""
+
+    def test_http_too_short(self) -> None:
+        """Test HTTP decapsulation with too-short data."""
+        from src.encapsulation import decapsulate_http_to_dns
+
+        with pytest.raises(ValueError, match="too short"):
+            decapsulate_http_to_dns(b"short")
+
+    def test_http_no_terminator(self) -> None:
+        """Test HTTP decapsulation without header terminator."""
+        from src.encapsulation import decapsulate_http_to_dns
+
+        with pytest.raises(ValueError, match="no header terminator"):
+            decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
+
+    def test_http_empty_body(self) -> None:
+        """Test HTTP decapsulation with empty body."""
+        from src.encapsulation import decapsulate_http_to_dns
+
+        http_msg = b"GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n"
+
+        with pytest.raises(ValueError, match="no body"):
+            decapsulate_http_to_dns(http_msg)
+
+    def test_dns_too_short(self) -> None:
+        """Test DNS decapsulation with too-short data."""
+        from src.encapsulation import decapsulate_dns_to_tcp
+
+        with pytest.raises(ValueError, match="too short"):
+            decapsulate_dns_to_tcp(b"\x00" * 10)
+
+    def test_dns_no_answers(self) -> None:
+        """Test DNS decapsulation with no answer records."""
+        from src.encapsulation import decapsulate_dns_to_tcp
+        from dnslib import DNSRecord, DNSHeader
+
+        dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
+
+        with pytest.raises(ValueError, match="no answer records"):
+            decapsulate_dns_to_tcp(dns_msg.pack())
+
+    def test_dns_wrong_type(self) -> None:
+        """Test DNS decapsulation with wrong record type."""
+        from src.encapsulation import decapsulate_dns_to_tcp
+        from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A
+
+        dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
+        dns_msg.add_answer(
+            RR(rname="test.example.com", rtype=QTYPE.A, rclass=1, ttl=0, rdata=A("127.0.0.1"))
+        )
+
+        with pytest.raises(ValueError, match="Expected TXT record"):
+            decapsulate_dns_to_tcp(dns_msg.pack())
+
+    def test_dns_empty_txt(self) -> None:
+        """Test DNS decapsulation with empty TXT data."""
+        from src.encapsulation import decapsulate_dns_to_tcp
+        from dnslib import DNSRecord, DNSHeader, RR, QTYPE, TXT
+
+        dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
+        dns_msg.add_answer(
+            RR(rname="test.example.com", rtype=QTYPE.TXT, rclass=1, ttl=0, rdata=TXT([""]))
+        )
+
+        with pytest.raises(ValueError, match="empty"):
+            decapsulate_dns_to_tcp(dns_msg.pack())
+
+    def test_tcp_too_short(self) -> None:
+        """Test TCP decapsulation with too-short data."""
+        from src.encapsulation import decapsulate_tcp_to_ip
+
+        with pytest.raises(ValueError, match="too short"):
+            decapsulate_tcp_to_ip(b"\x00" * 10)
+
+    def test_ip_too_short(self) -> None:
+        """Test IP decapsulation with too-short data."""
+        from src.encapsulation import decapsulate_ip_to_ethernet
+
+        with pytest.raises(ValueError, match="too short"):
+            decapsulate_ip_to_ethernet(b"\x00" * 10)
+
+    def test_ip_no_payload(self) -> None:
+        """Test IP decapsulation with no payload."""
+        from src.encapsulation import decapsulate_ip_to_ethernet
+        from scapy.layers.inet import IP
+
+        packet = IP(src="10.0.0.1", dst="10.0.0.2")
+
+        with pytest.raises(ValueError, match="no payload"):
+            decapsulate_ip_to_ethernet(bytes(packet))

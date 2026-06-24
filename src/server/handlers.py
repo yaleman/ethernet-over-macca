@@ -1,5 +1,6 @@
 """Request handlers for EoMacca server."""
 
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,17 +21,20 @@ class Statistics:
     bytes_sent: int = 0
     total_overhead: int = 0
     start_time: float = field(default_factory=time.time)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def update_received(self, packet_size: int, payload_size: int) -> None:
         """Update statistics for received packet."""
-        self.packets_received += 1
-        self.bytes_received += packet_size
-        self.total_overhead += packet_size - payload_size
+        with self._lock:
+            self.packets_received += 1
+            self.bytes_received += packet_size
+            self.total_overhead += packet_size - payload_size
 
     def update_sent(self, packet_size: int) -> None:
         """Update statistics for sent packet."""
-        self.packets_sent += 1
-        self.bytes_sent += packet_size
+        with self._lock:
+            self.packets_sent += 1
+            self.bytes_sent += packet_size
 
     def get_uptime(self) -> float:
         """Get server uptime in seconds."""
@@ -38,17 +42,18 @@ class Statistics:
 
     def display(self) -> None:
         """Display statistics."""
-        uptime = self.get_uptime()
-        console.print("\n[bold cyan]Server Statistics[/bold cyan]")
-        console.print(f"  Uptime: {uptime:.2f}s")
-        console.print(f"  Packets RX: {self.packets_received}")
-        console.print(f"  Packets TX: {self.packets_sent}")
-        console.print(f"  Bytes RX: {self.bytes_received:,}")
-        console.print(f"  Bytes TX: {self.bytes_sent:,}")
-        console.print(f"  Overhead: {self.total_overhead:,} bytes")
-        if self.packets_received > 0:
-            avg_overhead = self.total_overhead / self.packets_received
-            console.print(f"  Avg overhead: {avg_overhead:.1f} bytes/packet")
+        with self._lock:
+            uptime = self.get_uptime()
+            console.print("\n[bold cyan]Server Statistics[/bold cyan]")
+            console.print(f"  Uptime: {uptime:.2f}s")
+            console.print(f"  Packets RX: {self.packets_received}")
+            console.print(f"  Packets TX: {self.packets_sent}")
+            console.print(f"  Bytes RX: {self.bytes_received:,}")
+            console.print(f"  Bytes TX: {self.bytes_sent:,}")
+            console.print(f"  Overhead: {self.total_overhead:,} bytes")
+            if self.packets_received > 0:
+                avg_overhead = self.total_overhead / self.packets_received
+                console.print(f"  Avg overhead: {avg_overhead:.1f} bytes/packet")
 
 
 class RequestHandler:
@@ -57,7 +62,9 @@ class RequestHandler:
     def __init__(self) -> None:
         """Initialize request handler."""
         self.stats = Statistics()
-        self.chat_history: list[tuple[str, str]] = []  # (timestamp, message)
+        self._chat_lock = threading.Lock()
+        self._files_lock = threading.Lock()
+        self.chat_history: list[tuple[str, str]] = []
         self.files: dict[str, bytes] = {}
 
     def handle_echo(self, payload: bytes) -> bytes:
@@ -70,11 +77,12 @@ class RequestHandler:
         try:
             message = payload.decode("utf-8")
             timestamp = time.strftime("%H:%M:%S")
-            self.chat_history.append((timestamp, message))
+
+            with self._chat_lock:
+                self.chat_history.append((timestamp, message))
 
             console.print(f"[yellow]CHAT [{timestamp}]:[/yellow] {message}")
 
-            # Send acknowledgment
             ack = f"Message received at {timestamp}".encode("utf-8")
             return ack
         except UnicodeDecodeError:
@@ -82,7 +90,6 @@ class RequestHandler:
 
     def handle_file(self, payload: bytes) -> bytes:
         """Handle file transfer."""
-        # File format: filename_length (4 bytes) + filename + file_data
         if len(payload) < 4:
             return b"Error: Invalid file format"
 
@@ -93,7 +100,8 @@ class RequestHandler:
         filename = payload[4 : 4 + filename_length].decode("utf-8")
         file_data = payload[4 + filename_length :]
 
-        self.files[filename] = file_data
+        with self._files_lock:
+            self.files[filename] = file_data
 
         console.print(
             f"[magenta]FILE:[/magenta] Received '{filename}' ({len(file_data)} bytes)"
@@ -106,14 +114,12 @@ class RequestHandler:
 
     def handle_ping(self, payload: bytes) -> bytes:
         """Handle ping request."""
-        # Payload should contain timestamp from client
         try:
             client_time = float(payload.decode("utf-8"))
             server_time = time.time()
 
             console.print("[blue]PING:[/blue] RTT will be calculated by client")
 
-            # Send back both timestamps
             response = f"{client_time},{server_time}".encode("utf-8")
             return response
         except (ValueError, UnicodeDecodeError):
@@ -135,10 +141,12 @@ class RequestHandler:
 
     def save_file(self, filename: str, output_dir: Path) -> bool:
         """Save received file to disk."""
-        if filename not in self.files:
-            return False
+        with self._files_lock:
+            if filename not in self.files:
+                return False
+            file_data = self.files[filename]
 
         output_path = output_dir / filename
-        output_path.write_bytes(self.files[filename])
+        output_path.write_bytes(file_data)
         console.print(f"[green]Saved file to {output_path}[/green]")
         return True

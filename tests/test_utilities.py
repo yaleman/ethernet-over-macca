@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-
 from src.brainfuck_generator import (
     generate_brainfuck_for_text,
     optimize_brainfuck,
@@ -17,16 +16,13 @@ class TestBrainfuckGenerator:
         text = "Hi"
         bf_code = generate_brainfuck_for_text(text)
 
-        # Should contain + for incrementing and . for output
         assert "+" in bf_code
         assert "." in bf_code
-        # Should have 2 output commands (one for each character)
         assert bf_code.count(".") == 2
 
     def test_generate_empty_text(self) -> None:
         """Test generating BF code for empty string."""
         bf_code = generate_brainfuck_for_text("")
-        # Empty string should produce no output
         assert bf_code == ""
 
     def test_generate_single_char(self) -> None:
@@ -35,15 +31,24 @@ class TestBrainfuckGenerator:
         assert "." in bf_code
         assert bf_code.count(".") == 1
 
+    def test_generate_large_jump(self) -> None:
+        """Test generation with large character value differences."""
+        text = " A"
+        bf_code = generate_brainfuck_for_text(text)
+        assert bf_code.count(".") == 2
+
+    def test_generate_descending_chars(self) -> None:
+        """Test generation with descending character values."""
+        text = "CBA"
+        bf_code = generate_brainfuck_for_text(text)
+        assert bf_code.count(".") == 3
+
     def test_optimize_brainfuck(self) -> None:
         """Test BF optimization."""
-        # Test +- cancellation
         unoptimized = "+++.+-+-+-.---."
         optimized = optimize_brainfuck(unoptimized)
 
-        # Should have fewer characters
         assert len(optimized) <= len(unoptimized)
-        # Should still have output commands
         assert optimized.count(".") == 3
 
     def test_optimize_no_change(self) -> None:
@@ -57,6 +62,12 @@ class TestBrainfuckGenerator:
         code = "+-+-+-"
         optimized = optimize_brainfuck(code)
         assert optimized == ""
+
+    def test_optimize_mixed_code(self) -> None:
+        """Test optimization preserves non-canceling operations."""
+        code = "+++>++<-."
+        optimized = optimize_brainfuck(code)
+        assert optimized == code
 
 
 class TestExamples:
@@ -74,21 +85,18 @@ class TestExamples:
         """Test basic encapsulation example runs without error."""
         from src.examples import example_basic_encapsulation
 
-        # Should not raise any exceptions
         example_basic_encapsulation()
 
     def test_example_efficiency_comparison(self) -> None:
         """Test efficiency comparison example."""
         from src.examples import example_efficiency_comparison
 
-        # Should not raise any exceptions
         example_efficiency_comparison()
 
     def test_example_visualize_layers(self) -> None:
         """Test layer visualization example."""
         from src.examples import example_visualize_layers
 
-        # Should not raise any exceptions
         example_visualize_layers()
 
 
@@ -105,15 +113,26 @@ class TestPDFGenerator:
         """Test PDF generation with small BF code."""
         from src.pdf_generator import generate_brainfuck_pdf
 
-        # Create small BF file
         bf_file = tmp_path / "test.bf"
         bf_file.write_text("+++.>++.")
 
         output_file = tmp_path / "output.pdf"
 
-        # Generate PDF
         generate_brainfuck_pdf(bf_file, output_file)
 
-        # Verify PDF was created
+        assert output_file.exists()
+        assert output_file.stat().st_size > 0
+
+    def test_generate_brainfuck_pdf_empty(self, tmp_path: Path) -> None:
+        """Test PDF generation with empty BF code."""
+        from src.pdf_generator import generate_brainfuck_pdf
+
+        bf_file = tmp_path / "empty.bf"
+        bf_file.write_text("")
+
+        output_file = tmp_path / "output_empty.pdf"
+
+        generate_brainfuck_pdf(bf_file, output_file)
+
         assert output_file.exists()
         assert output_file.stat().st_size > 0

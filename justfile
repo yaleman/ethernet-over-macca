@@ -10,7 +10,7 @@ check: lint typecheck test
 
 # Run tests
 test:
-    uv run pytest tests/ -v
+    uv run pytest -q
 
 # Run tests with coverage report
 test-coverage:
@@ -27,11 +27,11 @@ typecheck:
 
 # Run linting with ruff
 lint:
-    uv run ruff check src/ tests/
+    uv run ruff check
 
 # Format code with ruff
 format:
-    uv run ruff format src/ tests/
+    uv run ruff format
 
 # Run the example code
 example:
