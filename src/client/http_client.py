@@ -64,7 +64,6 @@ class HTTPClient:
             data=packet,
             timeout=self.timeout,
         )
-        response.raise_for_status()
 
         end_time = time.perf_counter()
         latency_ms = (end_time - start_time) * 1000
@@ -75,6 +74,11 @@ class HTTPClient:
             console.print(f"[cyan]Received {len(response_packet)} bytes[/cyan]")
 
         response_payload = self.stack.decapsulate(response_packet)
+
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Server error ({response.status_code}): {response_payload.decode('utf-8', errors='replace')}"
+            )
 
         if show_visualization:
             console.print(

@@ -48,7 +48,7 @@ class TCPClient:
             console.print(f"  Packet size: {len(packet)} bytes")
             console.print(
                 f"  Overhead: {len(packet) - len(payload)} bytes "
-                f"({(len(packet) - len(payload)) / len(payload) * 100:.1f}%)"
+                f"({(len(packet) - len(payload)) / max(len(payload), 1) * 100:.1f}%)"
             )
 
         # Send and receive
