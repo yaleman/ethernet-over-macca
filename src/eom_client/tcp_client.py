@@ -1,15 +1,45 @@
 """TCP client for EoMacca protocol."""
 
 import socket
+import struct
 import time
 from pathlib import Path
 
-from rich.console import Console
-
-from ..protocol_stack import EoMaccaStack
+from ethernet_over_macca import get_logger, MAX_FILENAME_LENGTH
+from ethernet_over_macca.protocol_stack import EoMaccaStack
 from .ui import UI
 
-console = Console()
+CONSOLE = get_logger()
+
+MAX_PACKET_SIZE = 102 * 1024 * 1024  # 102MB max packet size
+
+
+def recv_exact(sock: socket.socket, n: int) -> bytes:
+    """Receive exactly n bytes from socket, raising on disconnect."""
+    data = bytearray()
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            raise ConnectionError(
+                f"Connection closed while receiving data from server: laddr={sock.getsockname()} raddr={sock.getpeername()}"
+            )
+        data.extend(chunk)
+    return bytes(data)
+
+
+def recv_packet(sock: socket.socket) -> bytes:
+    """Receive a length-prefixed packet."""
+    length_bytes = recv_exact(sock, 4)
+    length = struct.unpack(">I", length_bytes)[0]
+    if length > MAX_PACKET_SIZE:
+        raise ValueError(f"Packet too large: {length} bytes (max {MAX_PACKET_SIZE})")
+    return recv_exact(sock, length)
+
+
+def send_packet(sock: socket.socket, data: bytes) -> None:
+    """Send a length-prefixed packet."""
+    length_prefix = struct.pack(">I", len(data))
+    sock.sendall(length_prefix + data)
 
 
 class TCPClient:
@@ -43,10 +73,10 @@ class TCPClient:
         packet = self.stack.encapsulate(payload)
 
         if show_visualization:
-            console.print("\n[cyan]Encapsulating payload...[/cyan]")
-            console.print(f"  Payload size: {len(payload)} bytes")
-            console.print(f"  Packet size: {len(packet)} bytes")
-            console.print(
+            CONSOLE.print("\n[cyan]Encapsulating payload...[/cyan]")
+            CONSOLE.print(f"  Payload size: {len(payload)} bytes")
+            CONSOLE.print(f"  Packet size: {len(packet)} bytes")
+            CONSOLE.print(
                 f"  Overhead: {len(packet) - len(payload)} bytes "
                 f"({(len(packet) - len(payload)) / max(len(payload), 1) * 100:.1f}%)"
             )
@@ -58,28 +88,28 @@ class TCPClient:
             s.connect((self.host, self.port))
 
             if show_visualization:
-                console.print(f"\n[green]Connected to {self.host}:{self.port}[/green]")
-                console.print(f"[cyan]Sending {len(packet)} bytes...[/cyan]")
+                CONSOLE.print(f"\n[green]Connected to {self.host}:{self.port}[/green]")
+                CONSOLE.print(f"[cyan]Sending {len(packet)} bytes...[/cyan]")
 
-            s.sendall(packet)
+            send_packet(s, packet)
 
             # Receive response
-            response_packet = s.recv(65536)
+            response_packet = recv_packet(s)
 
         end_time = time.perf_counter()
         latency_ms = (end_time - start_time) * 1000
 
         if show_visualization:
-            console.print(f"[cyan]Received {len(response_packet)} bytes[/cyan]")
+            CONSOLE.print(f"[cyan]Received {len(response_packet)} bytes[/cyan]")
 
         # Decapsulate response
         response_payload = self.stack.decapsulate(response_packet)
 
         if show_visualization:
-            console.print(
+            CONSOLE.print(
                 f"[green]Decapsulated response: {len(response_payload)} bytes[/green]"
             )
-            console.print(f"[yellow]Round-trip time: {latency_ms:.2f}ms[/yellow]\n")
+            CONSOLE.print(f"[yellow]Round-trip time: {latency_ms:.2f}ms[/yellow]\n")
 
         return response_payload, latency_ms
 
@@ -108,8 +138,8 @@ class TCPClient:
         payload = message.encode("utf-8")
         response, latency = self.send_receive(payload, show_visualization=False)
 
-        console.print(f"[green]→[/green] {message}")
-        console.print(
+        CONSOLE.print(f"[green]→[/green] {message}")
+        CONSOLE.print(
             f"[blue]←[/blue] {response.decode('utf-8')} [dim]({latency:.1f}ms)[/dim]"
         )
 
@@ -133,16 +163,18 @@ class TCPClient:
         # Format: filename_length (4 bytes) + filename + file_data
         filename_bytes = filename.encode("utf-8")
         filename_length = len(filename_bytes).to_bytes(4, "big")
+        if len(filename_bytes) > MAX_FILENAME_LENGTH:
+            raise ValueError(f"Filename too long (max {MAX_FILENAME_LENGTH} bytes)")
 
         payload = filename_length + filename_bytes + file_data
 
-        console.print(f"\n[cyan]Sending file: {filename}[/cyan]")
-        console.print(f"  File size: {len(file_data)} bytes")
+        CONSOLE.print(f"\n[cyan]Sending file: {filename}[/cyan]")
+        CONSOLE.print(f"  File size: {len(file_data)} bytes")
 
         response, latency = self.send_receive(payload)
 
-        console.print(f"[green]Server response:[/green] {response.decode('utf-8')}")
-        console.print(f"[yellow]Transfer time: {latency:.2f}ms[/yellow]")
+        CONSOLE.print(f"[green]Server response:[/green] {response.decode('utf-8')}")
+        CONSOLE.print(f"[yellow]Transfer time: {latency:.2f}ms[/yellow]")
 
         return response.decode("utf-8")
 
@@ -157,7 +189,7 @@ class TCPClient:
         """
         rtts: list[float] = []
 
-        console.print(
+        CONSOLE.print(
             f"\n[cyan]Pinging {self.host}:{self.port} ({count} times)...[/cyan]\n"
         )
 
@@ -175,10 +207,10 @@ class TCPClient:
                 rtt = (received_time - sent_time) * 1000  # Convert to ms
                 rtts.append(rtt)
 
-                console.print(f"[green]Ping {i + 1}:[/green] RTT = {rtt:.2f}ms")
+                CONSOLE.print(f"[green]Ping {i + 1}:[/green] RTT = {rtt:.2f}ms")
 
             except (ValueError, IndexError) as e:
-                console.print(f"[red]Error parsing ping response: {e}[/red]")
+                CONSOLE.print(f"[red]Error parsing ping response: {e}[/red]")
 
             if i < count - 1:
                 time.sleep(0.5)  # Small delay between pings
@@ -189,10 +221,10 @@ class TCPClient:
             min_rtt = min(rtts)
             max_rtt = max(rtts)
 
-            console.print("\n[bold]Ping Statistics:[/bold]")
-            console.print(f"  Packets: {count}")
-            console.print(f"  Min RTT: {min_rtt:.2f}ms")
-            console.print(f"  Avg RTT: {avg_rtt:.2f}ms")
-            console.print(f"  Max RTT: {max_rtt:.2f}ms")
+            CONSOLE.print("\n[bold]Ping Statistics:[/bold]")
+            CONSOLE.print(f"  Packets: {count}")
+            CONSOLE.print(f"  Min RTT: {min_rtt:.2f}ms")
+            CONSOLE.print(f"  Avg RTT: {avg_rtt:.2f}ms")
+            CONSOLE.print(f"  Max RTT: {max_rtt:.2f}ms")
 
         return rtts

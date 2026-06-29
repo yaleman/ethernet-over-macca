@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from src.protocol_stack import EoMaccaStack
+from ethernet_over_macca.protocol_stack import EoMaccaStack
 
 
 class TestPerformanceBenchmarks:
@@ -117,9 +117,13 @@ class TestPerformanceBenchmarks:
             stats = stack.get_overhead_stats(payload)
             overhead_ratios.append(stats["overhead_ratio"])
 
-        assert all(r > 0 for r in overhead_ratios), "All overhead ratios should be positive"
+        assert all(r > 0 for r in overhead_ratios), (
+            "All overhead ratios should be positive"
+        )
 
-        assert overhead_ratios[-1] < overhead_ratios[0], "Larger payloads should have lower overhead ratio"
+        assert overhead_ratios[-1] < overhead_ratios[0], (
+            "Larger payloads should have lower overhead ratio"
+        )
 
     def test_memory_efficiency(self, stack: EoMaccaStack) -> None:
         """Test that packet sizes are reasonable."""
@@ -128,7 +132,9 @@ class TestPerformanceBenchmarks:
 
         overhead_multiplier = len(packet) / len(payload)
 
-        assert overhead_multiplier < 50, f"Overhead too high: {overhead_multiplier:.1f}x"
+        assert overhead_multiplier < 50, (
+            f"Overhead too high: {overhead_multiplier:.1f}x"
+        )
 
     @pytest.mark.parametrize("payload_size", [1, 10, 100, 1000])
     def test_encapsulation_decapsulation_various_sizes(

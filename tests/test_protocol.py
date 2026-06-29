@@ -3,53 +3,48 @@
 import pytest
 from scapy.layers.l2 import Ether
 from scapy.packet import Raw
+from scapy.layers.inet import IP
+from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A, TXT
 
-from src.protocol_stack import EoMaccaStack
-from src.encapsulation import (
-    encapsulate_ethernet_in_ip,
-    encapsulate_ip_in_tcp,
-    encapsulate_tcp_in_dns,
-    encapsulate_dns_in_http,
-    decapsulate_http_to_dns,
-    decapsulate_dns_to_tcp,
-)
+from ethernet_over_macca.protocol_stack import EoMaccaStack
+from ethernet_over_macca.encapsulation import Encapsulator
 
 
 class TestEncapsulation:
     """Test individual encapsulation layers."""
 
-    def test_ethernet_in_ip(self) -> None:
+    def test_ethernet_in_ip(self, encapsulator: Encapsulator) -> None:
         """Test Ethernet frame encapsulation in IP."""
         eth_frame = Ether(src="aa:bb:cc:dd:ee:ff", dst="11:22:33:44:55:66") / Raw(
             load=b"test payload"
         )
         eth_bytes = bytes(eth_frame)
 
-        ip_packet = encapsulate_ethernet_in_ip(eth_bytes)
+        ip_packet = encapsulator.encapsulate_ethernet_in_ip(eth_bytes)
 
         assert len(ip_packet) > len(eth_bytes)
         assert isinstance(ip_packet, bytes)
 
-    def test_ip_in_tcp(self) -> None:
+    def test_ip_in_tcp(self, encapsulator: Encapsulator) -> None:
         """Test IP packet encapsulation in TCP."""
         ip_data = b"fake IP packet data"
-        tcp_segment = encapsulate_ip_in_tcp(ip_data)
+        tcp_segment = encapsulator.encapsulate_ip_in_tcp(ip_data)
 
         assert len(tcp_segment) > len(ip_data)
         assert isinstance(tcp_segment, bytes)
 
-    def test_tcp_in_dns(self) -> None:
+    def test_tcp_in_dns(self, encapsulator: Encapsulator) -> None:
         """Test TCP segment encapsulation in DNS."""
         tcp_data = b"fake TCP segment data"
-        dns_message = encapsulate_tcp_in_dns(tcp_data)
+        dns_message = encapsulator.encapsulate_tcp_in_dns(tcp_data)
 
         assert len(dns_message) > 0
         assert isinstance(dns_message, (bytes, bytearray))
 
-    def test_dns_in_http(self) -> None:
+    def test_dns_in_http(self, encapsulator: Encapsulator) -> None:
         """Test DNS message encapsulation in HTTP."""
         dns_data = b"fake DNS message"
-        http_request = encapsulate_dns_in_http(dns_data)
+        http_request = encapsulator.encapsulate_dns_in_http(dns_data)
 
         assert b"POST" in http_request
         assert b"HTTP/1.1" in http_request
@@ -60,25 +55,25 @@ class TestEncapsulation:
 class TestDecapsulation:
     """Test individual decapsulation layers."""
 
-    def test_http_to_dns(self) -> None:
+    def test_http_to_dns(self, encapsulator: Encapsulator) -> None:
         """Test DNS extraction from HTTP."""
         dns_data = b"fake DNS message"
-        http_request = encapsulate_dns_in_http(dns_data)
+        http_request = encapsulator.encapsulate_dns_in_http(dns_data)
 
-        extracted_dns = decapsulate_http_to_dns(http_request)
+        extracted_dns = encapsulator.decapsulate_http_to_dns(http_request)
         assert extracted_dns == dns_data
 
-    def test_http_to_dns_invalid(self) -> None:
+    def test_http_to_dns_invalid(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation with invalid data."""
         with pytest.raises(ValueError):
-            decapsulate_http_to_dns(b"not an HTTP message")
+            encapsulator.decapsulate_http_to_dns(b"not an HTTP message")
 
-    def test_dns_roundtrip(self) -> None:
+    def test_dns_roundtrip(self, encapsulator: Encapsulator) -> None:
         """Test DNS encapsulation and decapsulation roundtrip."""
         original_tcp = b"test TCP data for DNS roundtrip"
 
-        dns_msg = encapsulate_tcp_in_dns(original_tcp)
-        recovered_tcp = decapsulate_dns_to_tcp(dns_msg)
+        dns_msg = encapsulator.encapsulate_tcp_in_dns(original_tcp)
+        recovered_tcp = encapsulator.decapsulate_dns_to_tcp(dns_msg)
 
         assert recovered_tcp == original_tcp
 
@@ -86,9 +81,8 @@ class TestDecapsulation:
 class TestProtocolStack:
     """Test the complete protocol stack."""
 
-    def test_basic_encapsulation(self) -> None:
+    def test_basic_encapsulation(self, stack: EoMaccaStack) -> None:
         """Test basic payload encapsulation."""
-        stack = EoMaccaStack()
         payload = b"Hello, EoMacca!"
 
         encapsulated = stack.encapsulate(payload)
@@ -96,9 +90,8 @@ class TestProtocolStack:
         assert len(encapsulated) > len(payload)
         assert isinstance(encapsulated, bytes)
 
-    def test_encapsulation_decapsulation_roundtrip(self) -> None:
+    def test_encapsulation_decapsulation_roundtrip(self, stack: EoMaccaStack) -> None:
         """Test full encapsulation and decapsulation cycle."""
-        stack = EoMaccaStack()
         original_payload = b"This is a test payload for EoMacca protocol"
 
         # Encapsulate
@@ -110,9 +103,8 @@ class TestProtocolStack:
         # Verify
         assert recovered_payload == original_payload
 
-    def test_different_payload_sizes(self) -> None:
+    def test_different_payload_sizes(self, stack: EoMaccaStack) -> None:
         """Test encapsulation with various payload sizes."""
-        stack = EoMaccaStack()
         test_sizes = [1, 10, 100, 500, 1000]
 
         for size in test_sizes:
@@ -121,9 +113,8 @@ class TestProtocolStack:
             recovered = stack.decapsulate(encapsulated)
             assert recovered == payload, f"Failed for size {size}"
 
-    def test_empty_payload(self) -> None:
+    def test_empty_payload(self, stack: EoMaccaStack) -> None:
         """Test handling of empty payload."""
-        stack = EoMaccaStack()
         payload = b""
 
         encapsulated = stack.encapsulate(payload)
@@ -131,9 +122,8 @@ class TestProtocolStack:
 
         assert recovered == payload
 
-    def test_binary_payload(self) -> None:
+    def test_binary_payload(self, stack: EoMaccaStack) -> None:
         """Test with binary payload containing all byte values."""
-        stack = EoMaccaStack()
         payload = bytes(range(256))
 
         encapsulated = stack.encapsulate(payload)
@@ -141,9 +131,8 @@ class TestProtocolStack:
 
         assert recovered == payload
 
-    def test_overhead_stats(self) -> None:
+    def test_overhead_stats(self, stack: EoMaccaStack) -> None:
         """Test overhead statistics calculation."""
-        stack = EoMaccaStack()
         payload = b"Test payload for stats"
 
         stats = stack.get_overhead_stats(payload)
@@ -154,9 +143,8 @@ class TestProtocolStack:
         assert stats["overhead_ratio"] > 0
         assert 0 < stats["efficiency_percent"] < 100
 
-    def test_overhead_increases_with_small_payloads(self) -> None:
+    def test_overhead_increases_with_small_payloads(self, stack: EoMaccaStack) -> None:
         """Test that overhead ratio is worse for smaller payloads."""
-        stack = EoMaccaStack()
 
         stats_small = stack.get_overhead_stats(b"X" * 10)
         stats_large = stack.get_overhead_stats(b"X" * 1000)
@@ -185,16 +173,14 @@ class TestProtocolStack:
 class TestEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_decapsulate_invalid_ethernet(self) -> None:
+    def test_decapsulate_invalid_ethernet(self, stack: EoMaccaStack) -> None:
         """Test decapsulation with invalid Ethernet frame."""
-        stack = EoMaccaStack()
 
         with pytest.raises(Exception):
             stack.decapsulate(b"not a valid packet")
 
-    def test_very_long_payload(self) -> None:
+    def test_very_long_payload(self, stack: EoMaccaStack) -> None:
         """Test with a very long payload."""
-        stack = EoMaccaStack()
         payload = b"A" * 10000
 
         encapsulated = stack.encapsulate(payload)
@@ -202,9 +188,8 @@ class TestEdgeCases:
 
         assert recovered == payload
 
-    def test_unicode_payload(self) -> None:
+    def test_unicode_payload(self, stack: EoMaccaStack) -> None:
         """Test with Unicode data encoded as bytes."""
-        stack = EoMaccaStack()
         unicode_text = "Hello, 世界! 🌍"
         payload = unicode_text.encode("utf-8")
 
@@ -218,92 +203,90 @@ class TestEdgeCases:
 class TestDecapsulationValidation:
     """Test validation in decapsulation functions."""
 
-    def test_http_too_short(self) -> None:
+    def test_http_too_short(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation with too-short data."""
-        from src.encapsulation import decapsulate_http_to_dns
 
         with pytest.raises(ValueError, match="too short"):
-            decapsulate_http_to_dns(b"short")
+            encapsulator.decapsulate_http_to_dns(b"short")
 
-    def test_http_no_terminator(self) -> None:
+    def test_http_no_terminator(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation without header terminator."""
-        from src.encapsulation import decapsulate_http_to_dns
 
         with pytest.raises(ValueError, match="no header terminator"):
-            decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
+            encapsulator.decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
 
-    def test_http_empty_body(self) -> None:
+    def test_http_empty_body(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation with empty body."""
-        from src.encapsulation import decapsulate_http_to_dns
 
         http_msg = b"GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n"
 
         with pytest.raises(ValueError, match="no body"):
-            decapsulate_http_to_dns(http_msg)
+            encapsulator.decapsulate_http_to_dns(http_msg)
 
-    def test_dns_too_short(self) -> None:
+    def test_dns_too_short(self, encapsulator: Encapsulator) -> None:
         """Test DNS decapsulation with too-short data."""
-        from src.encapsulation import decapsulate_dns_to_tcp
 
         with pytest.raises(ValueError, match="too short"):
-            decapsulate_dns_to_tcp(b"\x00" * 10)
+            encapsulator.decapsulate_dns_to_tcp(b"\x00" * 10)
 
-    def test_dns_no_answers(self) -> None:
+    def test_dns_no_answers(self, encapsulator: Encapsulator) -> None:
         """Test DNS decapsulation with no answer records."""
-        from src.encapsulation import decapsulate_dns_to_tcp
-        from dnslib import DNSRecord, DNSHeader
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
 
         with pytest.raises(ValueError, match="no answer records"):
-            decapsulate_dns_to_tcp(dns_msg.pack())
+            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_dns_wrong_type(self) -> None:
+    def test_dns_wrong_type(self, encapsulator: Encapsulator) -> None:
         """Test DNS decapsulation with wrong record type."""
-        from src.encapsulation import decapsulate_dns_to_tcp
-        from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
         dns_msg.add_answer(
-            RR(rname="test.example.com", rtype=QTYPE.A, rclass=1, ttl=0, rdata=A("127.0.0.1"))
+            RR(
+                rname="test.example.com",
+                rtype=QTYPE.A,
+                rclass=1,
+                ttl=0,
+                rdata=A("127.0.0.1"),
+            )
         )
 
         with pytest.raises(ValueError, match="Expected TXT record"):
-            decapsulate_dns_to_tcp(dns_msg.pack())
+            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_dns_empty_txt(self) -> None:
+    def test_dns_empty_txt(self, encapsulator: Encapsulator) -> None:
         """Test DNS decapsulation with empty TXT data."""
-        from src.encapsulation import decapsulate_dns_to_tcp
-        from dnslib import DNSRecord, DNSHeader, RR, QTYPE, TXT
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
         dns_msg.add_answer(
-            RR(rname="test.example.com", rtype=QTYPE.TXT, rclass=1, ttl=0, rdata=TXT([""]))
+            RR(
+                rname="test.example.com",
+                rtype=QTYPE.TXT,
+                rclass=1,
+                ttl=0,
+                rdata=TXT([""]),
+            )
         )
 
         with pytest.raises(ValueError, match="empty"):
-            decapsulate_dns_to_tcp(dns_msg.pack())
+            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_tcp_too_short(self) -> None:
+    def test_tcp_too_short(self, encapsulator: Encapsulator) -> None:
         """Test TCP decapsulation with too-short data."""
-        from src.encapsulation import decapsulate_tcp_to_ip
 
         with pytest.raises(ValueError, match="too short"):
-            decapsulate_tcp_to_ip(b"\x00" * 10)
+            encapsulator.decapsulate_tcp_to_ip(b"\x00" * 10)
 
-    def test_ip_too_short(self) -> None:
+    def test_ip_too_short(self, encapsulator: Encapsulator) -> None:
         """Test IP decapsulation with too-short data."""
-        from src.encapsulation import decapsulate_ip_to_ethernet
 
         with pytest.raises(ValueError, match="too short"):
-            decapsulate_ip_to_ethernet(b"\x00" * 10)
+            encapsulator.decapsulate_ip_to_ethernet(b"\x00" * 10)
 
-    def test_ip_no_payload(self) -> None:
+    def test_ip_no_payload(self, encapsulator: Encapsulator) -> None:
         """Test IP decapsulation with no payload."""
-        from src.encapsulation import decapsulate_ip_to_ethernet
-        from scapy.layers.inet import IP
 
         packet = IP(src="10.0.0.1", dst="10.0.0.2")
 
         with pytest.raises(ValueError, match="no payload"):
-            decapsulate_ip_to_ethernet(bytes(packet))
+            encapsulator.decapsulate_ip_to_ethernet(bytes(packet))

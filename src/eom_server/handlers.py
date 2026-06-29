@@ -1,14 +1,17 @@
 """Request handlers for EoMacca server."""
 
+import sys
+
+from ethernet_over_macca import get_logger, MAX_FILENAME_LENGTH
+
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from rich.console import Console
 
-console = Console()
+CONSOLE = get_logger()
 
 
 @dataclass
@@ -44,16 +47,22 @@ class Statistics:
         """Display statistics."""
         with self._lock:
             uptime = self.get_uptime()
-            console.print("\n[bold cyan]Server Statistics[/bold cyan]")
-            console.print(f"  Uptime: {uptime:.2f}s")
-            console.print(f"  Packets RX: {self.packets_received}")
-            console.print(f"  Packets TX: {self.packets_sent}")
-            console.print(f"  Bytes RX: {self.bytes_received:,}")
-            console.print(f"  Bytes TX: {self.bytes_sent:,}")
-            console.print(f"  Overhead: {self.total_overhead:,} bytes")
-            if self.packets_received > 0:
-                avg_overhead = self.total_overhead / self.packets_received
-                console.print(f"  Avg overhead: {avg_overhead:.1f} bytes/packet")
+            try:
+                CONSOLE.print("\n[bold cyan]Server Statistics[/bold cyan]")
+                CONSOLE.print(f"  Uptime: {uptime:.2f}s")
+                CONSOLE.print(f"  Packets RX: {self.packets_received}")
+                CONSOLE.print(f"  Packets TX: {self.packets_sent}")
+                CONSOLE.print(f"  Bytes RX: {self.bytes_received:,}")
+                CONSOLE.print(f"  Bytes TX: {self.bytes_sent:,}")
+                CONSOLE.print(f"  Overhead: {self.total_overhead:,} bytes")
+                if self.packets_received > 0:
+                    avg_overhead = self.total_overhead / self.packets_received
+                    CONSOLE.print(f"  Avg overhead: {avg_overhead:.1f} bytes/packet")
+            except Exception as e:
+                if "pytest" in sys.modules:
+                    # because it's shutting down, we don't want to raise an exception in pytest because the logger has been closed
+                    return
+                raise e
 
 
 class RequestHandler:
@@ -69,7 +78,7 @@ class RequestHandler:
 
     def handle_echo(self, payload: bytes) -> bytes:
         """Echo back the payload."""
-        console.print(f"[green]ECHO:[/green] Received {len(payload)} bytes")
+        CONSOLE.print(f"[green]ECHO:[/green] Received {len(payload)} bytes")
         return payload
 
     def handle_chat(self, payload: bytes) -> bytes:
@@ -81,7 +90,7 @@ class RequestHandler:
             with self._chat_lock:
                 self.chat_history.append((timestamp, message))
 
-            console.print(f"[yellow]CHAT [{timestamp}]:[/yellow] {message}")
+            CONSOLE.print(f"[yellow]CHAT [{timestamp}]:[/yellow] {message}")
 
             ack = f"Message received at {timestamp}".encode("utf-8")
             return ack
@@ -94,6 +103,8 @@ class RequestHandler:
             return b"Error: Invalid file format"
 
         filename_length = int.from_bytes(payload[:4], "big")
+        if filename_length > MAX_FILENAME_LENGTH:
+            return b"Error: Filename too long"
         if len(payload) < 4 + filename_length:
             return b"Error: Incomplete file data"
 
@@ -103,10 +114,10 @@ class RequestHandler:
         with self._files_lock:
             self.files[filename] = file_data
 
-        console.print(
+        CONSOLE.print(
             f"[magenta]FILE:[/magenta] Received '{filename}' ({len(file_data)} bytes)"
         )
-        console.print(
+        CONSOLE.print(
             f"  [dim]Total overhead: {len(payload) - len(file_data)} bytes[/dim]"
         )
 
@@ -118,7 +129,7 @@ class RequestHandler:
             client_time = float(payload.decode("utf-8"))
             server_time = time.time()
 
-            console.print("[blue]PING:[/blue] RTT will be calculated by client")
+            CONSOLE.print("[blue]PING! Sending PONG![/blue]")
 
             response = f"{client_time},{server_time}".encode("utf-8")
             return response
@@ -148,5 +159,5 @@ class RequestHandler:
 
         output_path = output_dir / filename
         output_path.write_bytes(file_data)
-        console.print(f"[green]Saved file to {output_path}[/green]")
+        CONSOLE.print(f"[green]Saved file to {output_path}[/green]")
         return True

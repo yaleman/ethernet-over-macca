@@ -7,10 +7,12 @@ import time
 from pathlib import Path
 
 import pytest
+from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A
 
-from src.client.tcp_client import TCPClient
-from src.protocol_stack import EoMaccaStack
-from src.server.tcp_server import TCPServer
+from eom_client.tcp_client import TCPClient, recv_packet, send_packet
+from eom_server.tcp_server import TCPServer
+from ethernet_over_macca.encapsulation import Encapsulator
+from ethernet_over_macca.protocol_stack import EoMaccaStack
 
 
 @pytest.mark.parametrize("tcp_server", ["echo"], indirect=True)
@@ -108,7 +110,7 @@ def test_large_payload() -> None:
     time.sleep(0.1)
 
 
-def test_binary_payload() -> None:
+def test_binary_payload(stack: EoMaccaStack) -> None:
     """Test sending binary data through protocol."""
     port = 19996
     server = TCPServer(host="127.0.0.1", port=port, mode="echo")
@@ -117,15 +119,14 @@ def test_binary_payload() -> None:
     server_thread.start()
     time.sleep(0.5)
 
-    stack = EoMaccaStack()
     binary_data = bytes(range(256))
 
     packet = stack.encapsulate(binary_data)
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.connect(("127.0.0.1", port))
-        sock.sendall(packet)
-        response_packet = sock.recv(65536)
+        send_packet(sock, packet)
+        response_packet = recv_packet(sock)
 
     response_data = stack.decapsulate(response_packet)
     assert response_data == binary_data
@@ -142,9 +143,8 @@ def test_connection_error_handling() -> None:
         client.echo("This should fail")
 
 
-def test_protocol_overhead_statistics() -> None:
+def test_protocol_overhead_statistics(stack: EoMaccaStack) -> None:
     """Test overhead calculation accuracy."""
-    stack = EoMaccaStack()
 
     test_sizes = [10, 50, 100, 500, 1000]
 
@@ -165,30 +165,26 @@ def test_protocol_overhead_statistics() -> None:
 class TestMalformedPackets:
     """Test handling of malformed packets."""
 
-    def test_empty_packet(self) -> None:
+    def test_empty_packet(self, stack: EoMaccaStack) -> None:
         """Test decapsulation of empty packet."""
-        stack = EoMaccaStack()
 
         with pytest.raises(Exception):
             stack.decapsulate(b"")
 
-    def test_truncated_ethernet(self) -> None:
+    def test_truncated_ethernet(self, stack: EoMaccaStack) -> None:
         """Test decapsulation of truncated Ethernet frame."""
-        stack = EoMaccaStack()
 
         with pytest.raises(Exception):
             stack.decapsulate(b"\x00" * 10)
 
-    def test_random_bytes(self) -> None:
+    def test_random_bytes(self, stack: EoMaccaStack) -> None:
         """Test decapsulation of random bytes."""
-        stack = EoMaccaStack()
 
         with pytest.raises(Exception):
             stack.decapsulate(b"\xff" * 100)
 
-    def test_partial_valid_packet(self) -> None:
+    def test_partial_valid_packet(self, stack: EoMaccaStack) -> None:
         """Test decapsulation of partially valid packet."""
-        stack = EoMaccaStack()
         payload = b"Test payload"
         valid_packet = stack.encapsulate(payload)
 
@@ -197,16 +193,14 @@ class TestMalformedPackets:
         with pytest.raises(Exception):
             stack.decapsulate(truncated)
 
-    def test_invalid_ip_in_tcp(self) -> None:
+    def test_invalid_ip_in_tcp(self, encapsulator: Encapsulator) -> None:
         """Test handling of TCP segment with invalid IP payload."""
-        from src.encapsulation import decapsulate_tcp_to_ip
 
         with pytest.raises(ValueError, match="too short"):
-            decapsulate_tcp_to_ip(b"\x00" * 10)
+            encapsulator.decapsulate_tcp_to_ip(b"\x00" * 10)
 
-    def test_invalid_tcp_in_dns(self) -> None:
+    def test_invalid_tcp_in_dns(self, encapsulator: Encapsulator) -> None:
         """Test handling of DNS message with invalid TXT record type."""
-        from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
         dns_msg.add_answer(
@@ -219,45 +213,33 @@ class TestMalformedPackets:
             )
         )
 
-        from src.encapsulation import decapsulate_dns_to_tcp
-
         with pytest.raises(ValueError, match="Expected TXT record"):
-            decapsulate_dns_to_tcp(dns_msg.pack())
+            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_empty_dns_txt(self) -> None:
+    def test_empty_dns_txt(self, encapsulator: Encapsulator) -> None:
         """Test handling of DNS message with no answer records."""
-        from dnslib import DNSRecord, DNSHeader
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
 
-        from src.encapsulation import decapsulate_dns_to_tcp
-
         with pytest.raises(ValueError, match="no answer records"):
-            decapsulate_dns_to_tcp(dns_msg.pack())
+            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_malformed_http_headers(self) -> None:
+    def test_malformed_http_headers(self, encapsulator: Encapsulator) -> None:
         """Test handling of malformed HTTP headers."""
-        from src.encapsulation import decapsulate_http_to_dns
 
         with pytest.raises(ValueError, match="too short"):
-            decapsulate_http_to_dns(b"short")
+            encapsulator.decapsulate_http_to_dns(b"short")
 
         with pytest.raises(ValueError, match="no header terminator"):
-            decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
+            encapsulator.decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
 
-    def test_empty_http_body(self) -> None:
+    def test_empty_http_body(self, encapsulator: Encapsulator) -> None:
         """Test handling of HTTP with empty body."""
-        from src.encapsulation import decapsulate_http_to_dns
 
-        http_msg = (
-            b"GET / HTTP/1.1\r\n"
-            b"Host: example.com\r\n"
-            b"Content-Length: 0\r\n"
-            b"\r\n"
-        )
+        http_msg = b"GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n"
 
         with pytest.raises(ValueError, match="no body"):
-            decapsulate_http_to_dns(http_msg)
+            encapsulator.decapsulate_http_to_dns(http_msg)
 
     def test_concurrent_malformed_packets(self) -> None:
         """Test server handling of concurrent malformed packets."""
@@ -275,8 +257,8 @@ class TestMalformedPackets:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                     sock.settimeout(2.0)
                     sock.connect(("127.0.0.1", port))
-                    sock.sendall(data)
-                    response = sock.recv(65536)
+                    send_packet(sock, data)
+                    response = recv_packet(sock)
                     results.append(("success", len(response)))
             except Exception as e:
                 results.append(("error", str(e)))

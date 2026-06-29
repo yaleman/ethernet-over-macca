@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 
-from src.server.handlers import RequestHandler, Statistics
+from eom_server.handlers import RequestHandler, Statistics
 
 
 class TestStatistics:

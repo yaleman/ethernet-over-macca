@@ -1,156 +1,114 @@
-"""Tests for EoMacca HTTP server."""
+"""Tests for EoMacca HTTP server with live network I/O."""
 
-import threading
-import time
+from typing import Generator
 
 import pytest
+import requests
 
-from src.client.http_client import HTTPClient
-from src.protocol_stack import EoMaccaStack
-from src.server.http_server import HTTPServer
+from eom_client.http_client import HTTPClient
+from ethernet_over_macca.protocol_stack import EoMaccaStack
+from eom_server.http_server import HTTPServer
 
 
 @pytest.fixture
-def http_server(request: pytest.FixtureRequest) -> HTTPServer:
-    """Create an HTTP server instance for testing."""
-    mode = getattr(request, "param", "echo")
-    server = HTTPServer(mode=mode)
-    return server
+def live_http_server() -> Generator[HTTPServer, None, None]:
+    """Start a live HTTP server on an OS-assigned port."""
+    server = HTTPServer(mode="echo")
+    server.run_in_thread(port=0, max_startup_secs=1.0)
+    yield server
+
+    server.stop()
 
 
-class TestHTTPServerUnit:
-    """Unit tests for HTTP server using Flask test client."""
+class TestHTTPServerLive:
+    """Integration tests using real HTTP over TCP."""
 
-    def test_tunnel_endpoint_exists(self, http_server: HTTPServer) -> None:
-        """Test that tunnel endpoint is registered."""
-        client = http_server.app.test_client()
-        response = client.post("/eomacca/v1/tunnel")
-        assert response.status_code in (400, 500)
+    def test_echo_round_trip(self, live_http_server: HTTPServer) -> None:
+        """Test full encapsulation -> HTTP -> decapsulation round trip."""
+        client = HTTPClient(base_url=f"http://127.0.0.1:{live_http_server.port}")
+        message = "Hello through 8 layers via HTTP!"
+        response = client.echo(message)
+        assert response == message
+        client.close()
 
-    def test_stats_endpoint_exists(self, http_server: HTTPServer) -> None:
-        """Test that stats endpoint is registered."""
-        client = http_server.app.test_client()
-        response = client.get("/stats")
+    def test_ping_round_trip(self, live_http_server: HTTPServer) -> None:
+        """Test ping mode through live HTTP."""
+        live_http_server.mode = "ping"
+        client = HTTPClient(base_url=f"http://127.0.0.1:{live_http_server.port}")
+        rtts = client.ping(count=3)
+        assert len(rtts) == 3
+        assert all(rtt > 0 for rtt in rtts)
+        client.close()
+
+    def test_stats_endpoint(self, live_http_server: HTTPServer) -> None:
+        """Test stats endpoint returns valid data."""
+        url = f"http://127.0.0.1:{live_http_server.port}/stats"
+        response = requests.get(url, timeout=5)
         assert response.status_code == 200
-
-    def test_stats_returns_json(self, http_server: HTTPServer) -> None:
-        """Test that stats endpoint returns valid JSON."""
-        client = http_server.app.test_client()
-        response = client.get("/stats")
-        data = response.get_json()
+        data = response.json()
         assert "uptime_seconds" in data
         assert "packets_received" in data
         assert "packets_sent" in data
-        assert "bytes_received" in data
-        assert "bytes_sent" in data
-        assert "total_overhead" in data
 
-    def test_tunnel_with_invalid_data(self, http_server: HTTPServer) -> None:
-        """Test tunnel endpoint with invalid data."""
-        client = http_server.app.test_client()
-        response = client.post(
-            "/eomacca/v1/tunnel",
-            data=b"invalid packet data",
-            content_type="application/dns-message",
+    def test_stats_increase_after_request(self, live_http_server: HTTPServer) -> None:
+        """Test that stats counters increase after processing a request."""
+        stats_url = f"http://127.0.0.1:{live_http_server.port}/stats"
+
+        initial = requests.get(stats_url, timeout=5).json()
+
+        client = HTTPClient(base_url=f"http://127.0.0.1:{live_http_server.port}")
+        client.echo("stats test")
+        client.close()
+
+        final = requests.get(stats_url, timeout=5).json()
+        assert final["packets_received"] > initial["packets_received"]
+        assert final["packets_sent"] > initial["packets_sent"]
+
+    def test_invalid_packet_returns_500(self, live_http_server: HTTPServer) -> None:
+        """Test that malformed EoMacca packets return 500."""
+        url = f"http://127.0.0.1:{live_http_server.port}/eomacca/v1/tunnel"
+        response = requests.post(
+            url,
+            data=b"not a valid eomacca packet",
+            headers={"Content-Type": "application/dns-message"},
+            timeout=5,
         )
         assert response.status_code == 500
 
-    def test_tunnel_with_valid_packet(self, http_server: HTTPServer) -> None:
-        """Test tunnel endpoint with valid EoMacca packet."""
-        stack = EoMaccaStack()
-        payload = b"Test HTTP tunnel payload"
-        packet = stack.encapsulate(payload)
+    def test_unexpected_content_type_still_processes(
+        self, live_http_server: HTTPServer, stack: EoMaccaStack
+    ) -> None:
+        """Test that wrong content-type still processes the packet."""
+        packet = stack.encapsulate(b"wrong content type test")
 
-        client = http_server.app.test_client()
-        response = client.post(
-            "/eomacca/v1/tunnel",
+        url = f"http://127.0.0.1:{live_http_server.port}/eomacca/v1/tunnel"
+        response = requests.post(
+            url,
             data=packet,
-            content_type="application/dns-message",
-        )
-        assert response.status_code == 200
-        assert response.content_type == "application/dns-message"
-
-    def test_tunnel_echo_mode(self) -> None:
-        """Test tunnel in echo mode."""
-        server = HTTPServer(mode="echo")
-        stack = EoMaccaStack()
-        payload = b"Echo test"
-        packet = stack.encapsulate(payload)
-
-        client = server.app.test_client()
-        response = client.post(
-            "/eomacca/v1/tunnel",
-            data=packet,
-            content_type="application/dns-message",
+            headers={"Content-Type": "text/plain"},
+            timeout=5,
         )
         assert response.status_code == 200
 
-        response_packet = response.get_data()
-        response_payload = stack.decapsulate(response_packet)
-        assert response_payload == payload
+        response_payload = live_http_server.stack.decapsulate(response.content)
+        assert response_payload == b"wrong content type test"
 
-    def test_tunnel_ping_mode(self) -> None:
-        """Test tunnel in ping mode."""
-        server = HTTPServer(mode="ping")
-        stack = EoMaccaStack()
-        client_time = str(time.time()).encode("utf-8")
-        packet = stack.encapsulate(client_time)
+    def test_overhead_is_realistic(self, live_http_server: HTTPServer) -> None:
+        """Test that HTTP transport adds realistic overhead."""
+        client = HTTPClient(base_url=f"http://127.0.0.1:{live_http_server.port}")
 
-        client = server.app.test_client()
-        response = client.post(
-            "/eomacca/v1/tunnel",
-            data=packet,
-            content_type="application/dns-message",
-        )
-        assert response.status_code == 200
+        small_msg = "X" * 10
+        response = client.echo(small_msg)
+        assert response == small_msg
 
-        response_packet = response.get_data()
-        response_payload = stack.decapsulate(response_packet)
-        parts = response_payload.decode("utf-8").split(",")
-        assert len(parts) == 2
-        assert float(parts[0]) == pytest.approx(float(client_time.decode()), abs=0.001)
-        assert float(parts[1]) > 0
-
-    def test_unexpected_content_type_warning(self, http_server: HTTPServer) -> None:
-        """Test that unexpected content type produces warning but still processes."""
-        stack = EoMaccaStack()
-        payload = b"Test payload"
-        packet = stack.encapsulate(payload)
-
-        client = http_server.app.test_client()
-        response = client.post(
-            "/eomacca/v1/tunnel",
-            data=packet,
-            content_type="text/plain",
-        )
-        assert response.status_code == 200
-
-    def test_stats_increase_after_request(self, http_server: HTTPServer) -> None:
-        """Test that stats increase after processing a request."""
-        stack = EoMaccaStack()
-        payload = b"Stats test"
-        packet = stack.encapsulate(payload)
-
-        client = http_server.app.test_client()
-
-        response = client.get("/stats")
-        initial_stats = response.get_json()
-
-        client.post(
-            "/eomacca/v1/tunnel",
-            data=packet,
-            content_type="application/dns-message",
-        )
-
-        response = client.get("/stats")
-        final_stats = response.get_json()
-
-        assert final_stats["packets_received"] >= initial_stats["packets_received"]
-        assert final_stats["packets_sent"] >= initial_stats["packets_sent"]
+        stats = client.get_stats()
+        assert stats["packets_received"] > 0
+        assert stats["total_overhead"] > 0
+        client.close()
 
 
-class TestHTTPClient:
-    """Test the HTTP client class."""
+class TestHTTPClientUnit:
+    """Unit tests for HTTPClient (no network)."""
 
     def test_client_initialization(self) -> None:
         """Test HTTPClient initialization."""
@@ -169,63 +127,3 @@ class TestHTTPClient:
         """Test HTTPClient as context manager."""
         with HTTPClient(base_url="http://127.0.0.1:9999") as client:
             assert client.stack is not None
-
-
-@pytest.fixture
-def live_http_server() -> HTTPServer:  # ty:ignore[invalid-return-type]
-    """Start a live HTTP server for integration testing."""
-    import socket
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-
-    server = HTTPServer(mode="echo")
-
-    def run_server() -> None:
-        server.app.run(host="127.0.0.1", port=port, debug=False)
-
-    server_thread = threading.Thread(target=run_server, daemon=True)
-    server_thread.start()
-
-    time.sleep(1.0)
-
-    yield server
-
-    server_thread.join(timeout=1.0)
-
-
-@pytest.mark.skip(reason="Requires live Flask server - run manually")
-class TestHTTPIntegration:
-    """Integration tests for HTTP client and server (require live server)."""
-
-    def test_http_echo_integration(self, live_http_server: HTTPServer) -> None:
-        """Test HTTP echo round-trip."""
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            s.listen(1)
-            port = s.getsockname()[1]
-
-        client = HTTPClient(base_url=f"http://127.0.0.1:{port}")
-        message = "HTTP integration test"
-        response = client.echo(message)
-        assert response == message
-        client.close()
-
-    def test_http_ping_integration(self, live_http_server: HTTPServer) -> None:
-        """Test HTTP ping functionality."""
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            s.listen(1)
-            port = s.getsockname()[1]
-
-        client = HTTPClient(base_url=f"http://127.0.0.1:{port}")
-        rtts = client.ping(count=2)
-        assert len(rtts) == 2
-        assert all(rtt > 0 for rtt in rtts)
-        client.close()

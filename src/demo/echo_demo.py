@@ -1,11 +1,11 @@
 """Echo demo for EoMacca protocol."""
 
-from rich.console import Console
+from ethernet_over_macca import get_logger
 
-from ..client.tcp_client import TCPClient
-from ..client.ui import UI
+from eom_client.tcp_client import TCPClient
+from eom_client.ui import UI
 
-console = Console()
+CONSOLE = get_logger()
 
 
 def main() -> None:
@@ -13,8 +13,8 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Echo Demo")
 
-    console.print("\n[dim]Make sure the server is running:[/dim]")
-    console.print("[dim]  just server-tcp echo[/dim]\n")
+    CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
+    CONSOLE.print("[dim]  just server-tcp echo[/dim]\n")
 
     client = TCPClient()
 
@@ -26,8 +26,8 @@ def main() -> None:
     ]
 
     for i, message in enumerate(messages, 1):
-        console.print(f"\n[bold cyan]Test {i}:[/bold cyan]")
-        console.print(f"[yellow]Sending:[/yellow] {message}")
+        CONSOLE.print(f"\n[bold cyan]Test {i}:[/bold cyan]")
+        CONSOLE.print(f"[yellow]Sending:[/yellow] {message}")
 
         try:
             response = client.echo(message)
@@ -42,7 +42,7 @@ def main() -> None:
             ui.print_error(f"Error: {e}")
             return
 
-    console.print("\n[bold green]Echo demo complete![/bold green]")
+    CONSOLE.print("\n[bold green]Echo demo complete![/bold green]")
 
 
 if __name__ == "__main__":

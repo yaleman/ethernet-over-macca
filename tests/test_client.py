@@ -1,9 +1,13 @@
 """Tests for EoMacca client components."""
 
+from ethernet_over_macca.protocol_stack import EoMaccaStack
+
+import struct
 from unittest.mock import MagicMock, patch
 
 
-from src.client.ui import UI
+from eom_client.ui import UI
+from eom_client.tcp_client import TCPClient
 
 
 class TestUI:
@@ -78,20 +82,27 @@ class TestTCPClientMethods:
     """Test TCPClient methods (without actual network)."""
 
     @patch("socket.socket")
-    def test_send_receive_mock(self, mock_socket: MagicMock) -> None:
+    def test_send_receive_mock(
+        self, mock_socket: MagicMock, stack: EoMaccaStack
+    ) -> None:
         """Test send_receive with mocked socket."""
-        from src.client.tcp_client import TCPClient
-        from src.protocol_stack import EoMaccaStack
 
         # Setup mock socket
         mock_sock_instance = MagicMock()
         mock_socket.return_value.__enter__.return_value = mock_sock_instance
 
         # Create a fake response packet
-        stack = EoMaccaStack()
+
         response_payload = b"Echo response"
         response_packet = stack.encapsulate(response_payload)
-        mock_sock_instance.recv.return_value = response_packet
+
+        # Mock recv to return length-prefixed packet
+        length_prefix = struct.pack(">I", len(response_packet))
+        mock_sock_instance.recv.side_effect = [
+            length_prefix[:2],
+            length_prefix[2:],
+            response_packet,
+        ]
 
         # Test client
         client = TCPClient()
@@ -104,7 +115,6 @@ class TestTCPClientMethods:
 
     def test_client_initialization(self) -> None:
         """Test TCPClient initialization."""
-        from src.client.tcp_client import TCPClient
 
         client = TCPClient(host="localhost", port=8888)
         assert client.host == "localhost"

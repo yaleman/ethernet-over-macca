@@ -1,15 +1,16 @@
 """Terminal UI utilities for EoMacca client."""
 
+from ethernet_over_macca import get_logger
+
 import time
 from typing import Any
 
-from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.tree import Tree
 
-console = Console()
+CONSOLE = get_logger()
 
 
 class UI:
@@ -18,8 +19,8 @@ class UI:
     @staticmethod
     def print_header(title: str) -> None:
         """Print a section header."""
-        console.print(f"\n[bold cyan]{title}[/bold cyan]")
-        console.print("=" * len(title))
+        CONSOLE.print(f"\n[bold cyan]{title}[/bold cyan]")
+        CONSOLE.print("=" * len(title))
 
     @staticmethod
     def print_packet_visualization(
@@ -43,7 +44,7 @@ class UI:
 
         current.add(f"[green]Payload[/green] ({payload_size} bytes)")
 
-        console.print(tree)
+        CONSOLE.print(tree)
 
         # Show efficiency
         efficiency = (
@@ -62,7 +63,7 @@ class UI:
         stats_table.add_row("Efficiency:", f"{efficiency:.2f}%")
         stats_table.add_row("Overhead Ratio:", f"{overhead_ratio:.2f}x")
 
-        console.print(stats_table)
+        CONSOLE.print(stats_table)
 
     @staticmethod
     def print_stats(stats: dict[str, Any]) -> None:
@@ -79,27 +80,27 @@ class UI:
             else:
                 table.add_row(key, str(value))
 
-        console.print(table)
+        CONSOLE.print(table)
 
     @staticmethod
     def print_success(message: str) -> None:
         """Print success message."""
-        console.print(f"[bold green]✓[/bold green] {message}")
+        CONSOLE.print(f"[bold green]✓[/bold green] {message}")
 
     @staticmethod
     def print_error(message: str) -> None:
         """Print error message."""
-        console.print(f"[bold red]✗[/bold red] {message}")
+        CONSOLE.print(f"[bold red]✗[/bold red] {message}")
 
     @staticmethod
     def print_info(message: str) -> None:
         """Print info message."""
-        console.print(f"[blue]ℹ[/blue] {message}")
+        CONSOLE.print(f"[blue]ℹ[/blue] {message}")
 
     @staticmethod
     def print_warning(message: str) -> None:
         """Print warning message."""
-        console.print(f"[yellow]⚠[/yellow] {message}")
+        CONSOLE.print(f"[yellow]⚠[/yellow] {message}")
 
     @staticmethod
     def show_progress(description: str) -> Progress:
@@ -107,14 +108,14 @@ class UI:
         progress = Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
-            console=console,
+            console=CONSOLE,
         )
         return progress
 
     @staticmethod
     def print_panel(content: str, title: str, style: str = "cyan") -> None:
         """Print content in a panel."""
-        console.print(Panel(content, title=title, border_style=style))
+        CONSOLE.print(Panel(content, title=title, border_style=style))
 
     @staticmethod
     def measure_latency(func: Any, *args: Any, **kwargs: Any) -> tuple[Any, float]:

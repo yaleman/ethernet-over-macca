@@ -1,14 +1,15 @@
 """HTTP client for EoMacca protocol."""
 
+import json
 import time
 from typing import Optional
 
 import requests
-from rich.console import Console
 
-from ..protocol_stack import EoMaccaStack
+from ethernet_over_macca import get_logger
+from ethernet_over_macca.protocol_stack import EoMaccaStack
 
-console = Console()
+CONSOLE = get_logger()
 
 
 class HTTPClient:
@@ -29,9 +30,7 @@ class HTTPClient:
         self.timeout = timeout
         self.stack = EoMaccaStack()
         self.session = requests.Session()
-        self.session.headers.update(
-            {"Content-Type": "application/dns-message"}
-        )
+        self.session.headers.update({"Content-Type": "application/dns-message"})
 
     def send_receive(
         self, payload: bytes, show_visualization: bool = True
@@ -48,10 +47,10 @@ class HTTPClient:
         packet = self.stack.encapsulate(payload)
 
         if show_visualization:
-            console.print("\n[cyan]Encapsulating payload...[/cyan]")
-            console.print(f"  Payload size: {len(payload)} bytes")
-            console.print(f"  Packet size: {len(packet)} bytes")
-            console.print(
+            CONSOLE.print("\n[cyan]Encapsulating payload...[/cyan]")
+            CONSOLE.print(f"  Payload size: {len(payload)} bytes")
+            CONSOLE.print(f"  Packet size: {len(packet)} bytes")
+            CONSOLE.print(
                 f"  Overhead: {len(packet) - len(payload)} bytes "
                 f"({(len(packet) - len(payload)) / max(len(payload), 1) * 100:.1f}%)"
             )
@@ -71,7 +70,7 @@ class HTTPClient:
         response_packet = response.content
 
         if show_visualization:
-            console.print(f"[cyan]Received {len(response_packet)} bytes[/cyan]")
+            CONSOLE.print(f"[cyan]Received {len(response_packet)} bytes[/cyan]")
 
         response_payload = self.stack.decapsulate(response_packet)
 
@@ -81,10 +80,10 @@ class HTTPClient:
             )
 
         if show_visualization:
-            console.print(
+            CONSOLE.print(
                 f"[green]Decapsulated response: {len(response_payload)} bytes[/green]"
             )
-            console.print(f"[yellow]Round-trip time: {latency_ms:.2f}ms[/yellow]\n")
+            CONSOLE.print(f"[yellow]Round-trip time: {latency_ms:.2f}ms[/yellow]\n")
 
         return response_payload, latency_ms
 
@@ -112,9 +111,7 @@ class HTTPClient:
         """
         rtts: list[float] = []
 
-        console.print(
-            f"\n[cyan]Pinging {self.base_url} ({count} times)...[/cyan]\n"
-        )
+        CONSOLE.print(f"\n[cyan]Pinging {self.base_url} ({count} times)...[/cyan]\n")
 
         for i in range(count):
             client_time = str(time.time()).encode("utf-8")
@@ -128,10 +125,10 @@ class HTTPClient:
                 rtt = (received_time - sent_time) * 1000
                 rtts.append(rtt)
 
-                console.print(f"[green]Ping {i + 1}:[/green] RTT = {rtt:.2f}ms")
+                CONSOLE.print(f"[green]Ping {i + 1}:[/green] RTT = {rtt:.2f}ms")
 
             except (ValueError, IndexError) as e:
-                console.print(f"[red]Error parsing ping response: {e}[/red]")
+                CONSOLE.print(f"[red]Error parsing ping response: {e}[/red]")
 
             if i < count - 1:
                 time.sleep(0.5)
@@ -141,11 +138,11 @@ class HTTPClient:
             min_rtt = min(rtts)
             max_rtt = max(rtts)
 
-            console.print("\n[bold]Ping Statistics:[/bold]")
-            console.print(f"  Packets: {count}")
-            console.print(f"  Min RTT: {min_rtt:.2f}ms")
-            console.print(f"  Avg RTT: {avg_rtt:.2f}ms")
-            console.print(f"  Max RTT: {max_rtt:.2f}ms")
+            CONSOLE.print("\n[bold]Ping Statistics:[/bold]")
+            CONSOLE.print(f"  Packets: {count}")
+            CONSOLE.print(f"  Min RTT: {min_rtt:.2f}ms")
+            CONSOLE.print(f"  Avg RTT: {avg_rtt:.2f}ms")
+            CONSOLE.print(f"  Max RTT: {max_rtt:.2f}ms")
 
         return rtts
 
@@ -155,7 +152,6 @@ class HTTPClient:
         Returns:
             Dictionary of server statistics
         """
-        import json
 
         url = f"{self.base_url}/stats"
         response = self.session.get(url, timeout=self.timeout)

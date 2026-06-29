@@ -39,31 +39,27 @@ example:
 
 # Start TCP server in echo mode
 server-tcp mode="echo":
-    uv run python -m src.server.tcp_server {{mode}}
+    uv run python -m eom_server.tcp_server {{mode}}
 
 # Start HTTP server
 server-http mode="echo":
-    uv run python -m src.server.http_server {{mode}}
+    uv run python -m eom_server.http_server {{mode}}
 
 # Run echo demo (requires server running)
 demo-echo:
-    uv run python -m src.demo.echo_demo
+    uv run python -m demo.echo_demo
 
-# Run chat demo (requires server running)
+# Run chat demo (requires server running - 'just server-tcp chat')
 demo-chat:
-    uv run python -m src.demo.chat_demo
+    uv run python -m demo.chat_demo
 
 # Run file transfer demo (requires server running)
 demo-file:
-    uv run python -m src.demo.file_demo
+    uv run python -m demo.file_demo
 
 # Run ping/latency demo (requires server running)
 demo-ping:
-    uv run python -m src.demo.ping_demo
-
-# Run all demos in sequence (requires server running)
-demo-all: demo-echo demo-file demo-ping
-    @echo "✓ All demos complete!"
+    uv run python -m demo.ping_demo
 
 # Generate Brainfuck code from RFC
 generate-brainfuck:

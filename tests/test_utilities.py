@@ -2,10 +2,15 @@
 
 from pathlib import Path
 
+from src import examples
 from src.brainfuck_generator import (
     generate_brainfuck_for_text,
     optimize_brainfuck,
 )
+from src.pdf_generator import generate_brainfuck_pdf
+from src.examples import example_basic_encapsulation
+from src.examples import example_efficiency_comparison
+from src.examples import example_visualize_layers
 
 
 class TestBrainfuckGenerator:
@@ -75,7 +80,6 @@ class TestExamples:
 
     def test_examples_import(self) -> None:
         """Test that examples module can be imported."""
-        from src import examples
 
         assert hasattr(examples, "example_basic_encapsulation")
         assert hasattr(examples, "example_efficiency_comparison")
@@ -83,19 +87,16 @@ class TestExamples:
 
     def test_example_basic_encapsulation(self) -> None:
         """Test basic encapsulation example runs without error."""
-        from src.examples import example_basic_encapsulation
 
         example_basic_encapsulation()
 
     def test_example_efficiency_comparison(self) -> None:
         """Test efficiency comparison example."""
-        from src.examples import example_efficiency_comparison
 
         example_efficiency_comparison()
 
     def test_example_visualize_layers(self) -> None:
         """Test layer visualization example."""
-        from src.examples import example_visualize_layers
 
         example_visualize_layers()
 
@@ -103,16 +104,8 @@ class TestExamples:
 class TestPDFGenerator:
     """Test PDF generation utilities."""
 
-    def test_pdf_generator_import(self) -> None:
-        """Test PDF generator can be imported."""
-        from src import pdf_generator
-
-        assert hasattr(pdf_generator, "generate_brainfuck_pdf")
-
     def test_generate_brainfuck_pdf(self, tmp_path: Path) -> None:
         """Test PDF generation with small BF code."""
-        from src.pdf_generator import generate_brainfuck_pdf
-
         bf_file = tmp_path / "test.bf"
         bf_file.write_text("+++.>++.")
 
@@ -125,7 +118,6 @@ class TestPDFGenerator:
 
     def test_generate_brainfuck_pdf_empty(self, tmp_path: Path) -> None:
         """Test PDF generation with empty BF code."""
-        from src.pdf_generator import generate_brainfuck_pdf
 
         bf_file = tmp_path / "empty.bf"
         bf_file.write_text("")

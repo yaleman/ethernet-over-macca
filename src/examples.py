@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-try:
-    from .protocol_stack import EoMaccaStack
-except ImportError:
-    # Running as script
-    from protocol_stack import EoMaccaStack  # type: ignore[import-untyped,no-redef]
+from ethernet_over_macca.protocol_stack import EoMaccaStack
+
+from ethernet_over_macca.encapsulation import Encapsulator
+
+from scapy.layers.l2 import Ether
+from scapy.layers.inet import IP, TCP
+from scapy.packet import Raw
 
 
 def example_basic_encapsulation() -> None:
@@ -87,24 +89,7 @@ def example_visualize_layers() -> None:
     print("Layer-by-Layer Encapsulation Visualization")
     print("=" * 70)
 
-    try:
-        from .encapsulation import (
-            encapsulate_ethernet_in_ip,
-            encapsulate_ip_in_tcp,
-            encapsulate_tcp_in_dns,
-            encapsulate_dns_in_http,
-        )
-    except ImportError:
-        from encapsulation import (  # type: ignore[import-untyped,no-redef]
-            encapsulate_ethernet_in_ip,
-            encapsulate_ip_in_tcp,
-            encapsulate_tcp_in_dns,
-            encapsulate_dns_in_http,
-        )
-
-    from scapy.layers.l2 import Ether
-    from scapy.layers.inet import IP, TCP
-    from scapy.packet import Raw
+    encapsulator = Encapsulator()
 
     payload = b"Secret message"
     print(f"\n0. Original payload: {len(payload)} bytes")
@@ -119,25 +104,25 @@ def example_visualize_layers() -> None:
     )
 
     # Layer 2: Inner IP
-    inner_ip = encapsulate_ethernet_in_ip(inner_eth_bytes)
+    inner_ip = encapsulator.encapsulate_ethernet_in_ip(inner_eth_bytes)
     print(
         f"2. Inner IP packet: {len(inner_ip)} bytes (+{len(inner_ip) - len(inner_eth_bytes)} bytes)"
     )
 
     # Layer 3: Inner TCP
-    inner_tcp = encapsulate_ip_in_tcp(inner_ip)
+    inner_tcp = encapsulator.encapsulate_ip_in_tcp(inner_ip)
     print(
         f"3. Inner TCP segment: {len(inner_tcp)} bytes (+{len(inner_tcp) - len(inner_ip)} bytes)"
     )
 
     # Layer 4: DNS
-    dns_msg = encapsulate_tcp_in_dns(inner_tcp)
+    dns_msg = encapsulator.encapsulate_tcp_in_dns(inner_tcp)
     print(
         f"4. DNS message: {len(dns_msg)} bytes (+{len(dns_msg) - len(inner_tcp)} bytes, includes base64)"
     )
 
     # Layer 5: HTTP
-    http_data = encapsulate_dns_in_http(dns_msg)
+    http_data = encapsulator.encapsulate_dns_in_http(dns_msg)
     print(
         f"5. HTTP request: {len(http_data)} bytes (+{len(http_data) - len(dns_msg)} bytes)"
     )

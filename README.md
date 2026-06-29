@@ -51,7 +51,7 @@ just demo-echo
 ## Using the Protocol Stack
 
 ```python
-from src.protocol_stack import EoMaccaStack
+from ethernet_over_macca.protocol_stack import EoMaccaStack
 
 stack = EoMaccaStack()
 
@@ -91,7 +91,6 @@ just demo-echo          # Send test messages, verify echoes
 just demo-chat          # Interactive chat session
 just demo-file          # Transfer files, show overhead
 just demo-ping          # Measure latency through 8 layers
-just demo-all           # Run echo, file, and ping demos
 ```
 
 ## Available Commands
@@ -165,7 +164,7 @@ Tests cover:
 ### "Module not found"
 
 - Run: `uv sync --all-extras`
-- Use Python 3.12+
+- Use Python 3.13+
 
 ### Brainfuck interpreter hangs
 

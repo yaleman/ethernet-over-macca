@@ -1,14 +1,15 @@
 """File transfer demo for EoMacca protocol."""
 
+from ethernet_over_macca import get_logger
+
 import tempfile
 from pathlib import Path
 
-from rich.console import Console
 
-from ..client.tcp_client import TCPClient
-from ..client.ui import UI
+from eom_client.tcp_client import TCPClient
+from eom_client.ui import UI
 
-console = Console()
+CONSOLE = get_logger()
 
 
 def main() -> None:
@@ -16,8 +17,8 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca File Transfer Demo")
 
-    console.print("\n[dim]Make sure the server is running:[/dim]")
-    console.print("[dim]  just server-tcp file[/dim]\n")
+    CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
+    CONSOLE.print("[dim]  just server-tcp file[/dim]\n")
 
     client = TCPClient()
 
@@ -41,7 +42,7 @@ def main() -> None:
 
         for file_path in files:
             try:
-                console.print(f"\n[cyan]Transferring {file_path.name}...[/cyan]")
+                CONSOLE.print(f"\n[cyan]Transferring {file_path.name}...[/cyan]")
                 client.send_file(file_path)
                 ui.print_success("Transfer complete!")
 
@@ -52,8 +53,8 @@ def main() -> None:
                 ui.print_error(f"Error: {e}")
                 return
 
-    console.print("\n[bold green]File transfer demo complete![/bold green]")
-    console.print(
+    CONSOLE.print("\n[bold green]File transfer demo complete![/bold green]")
+    CONSOLE.print(
         "[dim]Notice how the overhead increases dramatically for small files![/dim]"
     )
 

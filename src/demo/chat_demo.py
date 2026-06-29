@@ -1,11 +1,11 @@
 """Interactive chat demo for EoMacca protocol."""
 
-from rich.console import Console
+from ethernet_over_macca import get_logger
+from eom_client.tcp_client import TCPClient
+from eom_client.ui import UI
 
-from ..client.tcp_client import TCPClient
-from ..client.ui import UI
 
-console = Console()
+CONSOLE = get_logger()
 
 
 def main() -> None:
@@ -13,10 +13,10 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Chat Demo")
 
-    console.print("\n[dim]Make sure the server is running:[/dim]")
-    console.print("[dim]  just server-tcp chat[/dim]\n")
+    CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
+    CONSOLE.print("[dim]  just server-tcp chat[/dim]\n")
 
-    console.print(
+    CONSOLE.print(
         "[yellow]Type messages and press Enter. Type 'quit' to exit.[/yellow]\n"
     )
 
@@ -27,7 +27,7 @@ def main() -> None:
             message = input("\033[32mYou>\033[0m ")
 
             if message.lower() in ("quit", "exit", "q"):
-                console.print("[yellow]Goodbye![/yellow]")
+                CONSOLE.print("[yellow]Goodbye![/yellow]")
                 break
 
             if not message.strip():
@@ -39,7 +39,7 @@ def main() -> None:
             ui.print_error("Connection refused. Is the server running?")
             break
         except KeyboardInterrupt:
-            console.print("\n[yellow]Chat ended.[/yellow]")
+            CONSOLE.print("\n[yellow]Chat ended.[/yellow]")
             break
         except Exception as e:
             ui.print_error(f"Error: {e}")

@@ -3,10 +3,8 @@ name = "ethernet-over-macca"
 version = "0.1.0"
 description = "RFC implementation of Ethernet over IP over TCP over DNS over HTTP over TCP over IP over Ethernet"
 readme = "README.md"
-authors = [
-    { name = "James Hodgkinson", email = "james@terminaloutcomes.com" }
-]
-requires-python = ">=3.12"
+authors = [{ name = "James Hodgkinson", email = "james@terminaloutcomes.com" }]
+requires-python = ">=3.13"
 dependencies = [
     "scapy>=2.5.0",
     "dnslib>=0.9.24",
@@ -17,17 +15,19 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["uv_build>=0.9.10,<0.12.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.1",
     "pytest-cov>=4.1.0",
-    "mypy>=1.18.2",
     "ruff>=0.14.5",
     "types-reportlab>=4.4.5.20251121",
     "types-flask>=1.1.0",
     "types-requests>=2.31.0",
     "ty>=0.0.52",
 ]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "PLC0415"]

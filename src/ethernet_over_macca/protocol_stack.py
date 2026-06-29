@@ -2,20 +2,14 @@
 
 from typing import Final
 
+from scapy.config import conf
 from scapy.layers.inet import IP, TCP
 from scapy.layers.l2 import Ether
 from scapy.packet import Raw
 
-from .encapsulation import (
-    encapsulate_ethernet_in_ip,
-    encapsulate_ip_in_tcp,
-    encapsulate_tcp_in_dns,
-    encapsulate_dns_in_http,
-    decapsulate_http_to_dns,
-    decapsulate_dns_to_tcp,
-    decapsulate_tcp_to_ip,
-    decapsulate_ip_to_ethernet,
-)
+from .encapsulation import Encapsulator
+
+conf.padding = 0
 
 # Outer layer defaults
 OUTER_SRC_IP: Final[str] = "192.168.1.100"
@@ -58,6 +52,7 @@ class EoMaccaStack:
         self.outer_dst_port = outer_dst_port
         self.outer_src_mac = outer_src_mac
         self.outer_dst_mac = outer_dst_mac
+        self.encapsulator = Encapsulator()
 
     def encapsulate(self, payload: bytes) -> bytes:
         """Encapsulate payload through all 8 layers of the protocol stack.
@@ -75,16 +70,16 @@ class EoMaccaStack:
         inner_eth_bytes = bytes(inner_eth)
 
         # Layer 2: Encapsulate inner Ethernet in inner IP
-        inner_ip = encapsulate_ethernet_in_ip(inner_eth_bytes)
+        inner_ip = self.encapsulator.encapsulate_ethernet_in_ip(inner_eth_bytes)
 
         # Layer 3: Encapsulate inner IP in inner TCP
-        inner_tcp = encapsulate_ip_in_tcp(inner_ip)
+        inner_tcp = self.encapsulator.encapsulate_ip_in_tcp(inner_ip)
 
         # Layer 4: Encapsulate inner TCP in DNS
-        dns_msg = encapsulate_tcp_in_dns(inner_tcp)
+        dns_msg = self.encapsulator.encapsulate_tcp_in_dns(inner_tcp)
 
         # Layer 5: Encapsulate DNS in HTTP
-        http_data = encapsulate_dns_in_http(dns_msg)
+        http_data = self.encapsulator.encapsulate_dns_in_http(dns_msg)
 
         # Layer 6: Encapsulate HTTP in outer TCP
         outer_tcp = (
@@ -134,16 +129,16 @@ class EoMaccaStack:
 
         # Layer 5: Extract HTTP payload to get DNS
         http_data = bytes(tcp_layer.payload)
-        dns_msg = decapsulate_http_to_dns(http_data)
+        dns_msg = self.encapsulator.decapsulate_http_to_dns(http_data)
 
         # Layer 4: Extract DNS payload to get inner TCP
-        inner_tcp = decapsulate_dns_to_tcp(dns_msg)
+        inner_tcp = self.encapsulator.decapsulate_dns_to_tcp(dns_msg)
 
         # Layer 3: Extract inner TCP payload to get inner IP
-        inner_ip = decapsulate_tcp_to_ip(inner_tcp)
+        inner_ip = self.encapsulator.decapsulate_tcp_to_ip(inner_tcp)
 
         # Layer 2: Extract inner IP payload to get inner Ethernet
-        inner_eth_bytes = decapsulate_ip_to_ethernet(inner_ip)
+        inner_eth_bytes = self.encapsulator.decapsulate_ip_to_ethernet(inner_ip)
 
         # Layer 1: Parse inner Ethernet to get payload
         inner_eth = Ether(inner_eth_bytes)
