@@ -1,5 +1,7 @@
 """Integration tests for EoMacca protocol - full end-to-end testing."""
 
+from ethernet_over_macca.encapsulation import EomWrangler
+
 import socket
 import tempfile
 import threading
@@ -11,7 +13,7 @@ from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A
 
 from eom_client.tcp_client import TCPClient, recv_packet, send_packet
 from eom_server.tcp_server import TCPServer
-from ethernet_over_macca.encapsulation import Encapsulator
+
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 
 
@@ -152,14 +154,14 @@ def test_protocol_overhead_statistics(stack: EoMaccaStack) -> None:
         payload = b"X" * size
         stats = stack.get_overhead_stats(payload)
 
-        assert stats["payload_size"] == size
-        assert stats["total_size"] > size
-        assert stats["header_size"] == stats["total_size"] - size
-        assert stats["overhead_ratio"] > 0
-        assert 0 < stats["efficiency_percent"] < 100
+        assert stats.payload_size == size
+        assert stats.total_size > size
+        assert stats.header_size == stats.total_size - size
+        assert stats.overhead_ratio > 0
+        assert 0 < stats.efficiency_percent < 100
 
         if size >= 100:
-            assert stats["efficiency_percent"] > 15
+            assert stats.efficiency_percent > 15
 
 
 class TestMalformedPackets:
@@ -193,13 +195,13 @@ class TestMalformedPackets:
         with pytest.raises(Exception):
             stack.decapsulate(truncated)
 
-    def test_invalid_ip_in_tcp(self, encapsulator: Encapsulator) -> None:
+    def test_invalid_ip_in_tcp(self, wrangler: EomWrangler) -> None:
         """Test handling of TCP segment with invalid IP payload."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_tcp_to_ip(b"\x00" * 10)
+            wrangler.decapsulate_tcp_to_ip(b"\x00" * 10)
 
-    def test_invalid_tcp_in_dns(self, encapsulator: Encapsulator) -> None:
+    def test_invalid_tcp_in_dns(self, wrangler: EomWrangler) -> None:
         """Test handling of DNS message with invalid TXT record type."""
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
@@ -214,32 +216,32 @@ class TestMalformedPackets:
         )
 
         with pytest.raises(ValueError, match="Expected TXT record"):
-            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
+            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_empty_dns_txt(self, encapsulator: Encapsulator) -> None:
+    def test_empty_dns_txt(self, wrangler: EomWrangler) -> None:
         """Test handling of DNS message with no answer records."""
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
 
         with pytest.raises(ValueError, match="no answer records"):
-            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
+            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_malformed_http_headers(self, encapsulator: Encapsulator) -> None:
+    def test_malformed_http_headers(self, wrangler: EomWrangler) -> None:
         """Test handling of malformed HTTP headers."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_http_to_payload(b"short")
+            wrangler.decapsulate_http_to_payload(b"short")
 
         with pytest.raises(ValueError, match="no header terminator"):
-            encapsulator.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
+            wrangler.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
 
-    def test_empty_http_body(self, encapsulator: Encapsulator) -> None:
+    def test_empty_http_body(self, wrangler: EomWrangler) -> None:
         """Test handling of HTTP with empty body."""
 
         http_msg = b"GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n"
 
         with pytest.raises(ValueError, match="no body"):
-            encapsulator.decapsulate_http_to_payload(http_msg)
+            wrangler.decapsulate_http_to_payload(http_msg)
 
     def test_concurrent_malformed_packets(self) -> None:
         """Test server handling of concurrent malformed packets."""

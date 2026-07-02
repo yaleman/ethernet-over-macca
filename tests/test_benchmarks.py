@@ -114,8 +114,8 @@ class TestPerformanceBenchmarks:
 
         for size in sizes:
             payload = b"X" * size
-            stats = stack.get_overhead_stats(payload)
-            overhead_ratios.append(stats["overhead_ratio"])
+
+            overhead_ratios.append(stack.get_overhead_stats(payload).overhead_ratio)
 
         assert all(r > 0 for r in overhead_ratios), (
             "All overhead ratios should be positive"

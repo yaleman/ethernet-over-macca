@@ -9,26 +9,45 @@ from dnslib import DNSRecord, DNSQuestion, DNSHeader, RR, QTYPE, TXT  # type: ig
 from scapy.layers.inet import IP, TCP
 from scapy.packet import Raw
 
+
 INNER_SRC_IP: Final[str] = "10.255.255.1"
 INNER_DST_IP: Final[str] = "10.255.255.2"
 INNER_SRC_PORT: Final[int] = 31337
 INNER_DST_PORT: Final[int] = 31338
+# Outer layer defaults
+OUTER_SRC_IP: Final[str] = "192.168.1.100"
+OUTER_SRC_PORT: Final[int] = 54321
+OUTER_SRC_MAC: Final[str] = "00:11:22:33:44:55"
+
+OUTER_DST_IP: Final[str] = "192.168.1.200"
+OUTER_DST_PORT: Final[int] = 9999  # EoMacca default port
+OUTER_DST_MAC: Final[str] = "aa:bb:cc:dd:ee:ff"
+
 DNS_DOMAIN: Final[str] = "data.eomacca.example.com"
 HTTP_HOST: Final[str] = "eomacca.example.com"
 HTTP_PATH: Final[str] = "/eomacca/v1/tunnel"
+
 
 MIN_ETH_HEADER: Final[int] = 14
 MIN_IP_HEADER: Final[int] = 20
 MIN_TCP_HEADER: Final[int] = 20
 
 
-class Encapsulator:
+class EomWrangler:
+    """Encapsulation functions for EoMacca protocol."""
+
     def __init__(
         self,
         inner_src_ip: str = INNER_SRC_IP,
         inner_dst_ip: str = INNER_DST_IP,
         inner_src_port: int = INNER_SRC_PORT,
         inner_dst_port: int = INNER_DST_PORT,
+        outer_src_ip: str = OUTER_SRC_IP,
+        outer_dst_ip: str = OUTER_DST_IP,
+        outer_src_port: int = OUTER_SRC_PORT,
+        outer_dst_port: int = OUTER_DST_PORT,
+        outer_src_mac: str = OUTER_SRC_MAC,
+        outer_dst_mac: str = OUTER_DST_MAC,
         dns_domain: str = DNS_DOMAIN,
         http_host: str = HTTP_HOST,
         http_path: str = HTTP_PATH,
@@ -37,12 +56,18 @@ class Encapsulator:
         self.inner_dst_ip = inner_dst_ip
         self.inner_src_port = inner_src_port
         self.inner_dst_port = inner_dst_port
+        self.outer_src_ip = outer_src_ip
+        self.outer_dst_ip = outer_dst_ip
+        self.outer_src_port = outer_src_port
+        self.outer_dst_port = outer_dst_port
+        self.outer_src_mac = outer_src_mac
+        self.outer_dst_mac = outer_dst_mac
         self.dns_domain = dns_domain
         self.http_host = http_host
         self.http_path = http_path
 
-    def encapsulate_ethernet_in_ip(self, eth_frame: bytes) -> bytes:
-        """Encapsulate an Ethernet frame as the payload of an IP packet.
+    def encapsulate_ethernet_in_tcp_ip(self, eth_frame: bytes) -> bytes:
+        """Encapsulate an Ethernet frame as the payload of a TCP/IP packet.
 
         Args:
             eth_frame: Raw Ethernet frame bytes
@@ -57,6 +82,16 @@ class Encapsulator:
         ) / Raw(load=eth_frame)
 
         return bytes(ip_packet)
+
+    def encapsulate_payload_frame(self, payload: bytes) -> bytes:
+        inner_eth = Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / Raw(
+            load=payload
+        )
+
+        return bytes(inner_eth)
+
+    def encapsulate_bytes_in_ethernet(self, payload: bytes) -> bytes:
+        return Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / payload
 
     def encapsulate_ip_in_tcp(self, ip_packet: bytes) -> bytes:
         """Encapsulate an IP packet as the payload of a TCP segment.
@@ -141,6 +176,20 @@ class Encapsulator:
         ).encode("ascii")
 
         return http_request + dns_message
+
+    def encapsulate_http_in_ip(self, http_request: bytes) -> bytes:
+
+        return (
+            IP(src=self.outer_src_ip, dst=self.outer_dst_ip)
+            / TCP(
+                sport=self.outer_src_port,
+                dport=self.outer_dst_port,
+                flags="PA",
+                seq=2000,
+                ack=2000,
+            )
+            / Raw(load=http_request)
+        )
 
     def decapsulate_http_to_payload(self, http_data: bytes) -> bytes:
         """Extract payload from HTTP request/response.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 
-from ethernet_over_macca.encapsulation import Encapsulator
+from ethernet_over_macca.encapsulation import EomWrangler
 
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, TCP
@@ -33,11 +33,11 @@ def example_basic_encapsulation() -> None:
     # Show overhead stats
     stats = stack.get_overhead_stats(payload)
     print("\nOverhead Statistics:")
-    print(f"  Payload size:     {stats['payload_size']} bytes")
-    print(f"  Header size:      {stats['header_size']} bytes")
-    print(f"  Total size:       {stats['total_size']} bytes")
-    print(f"  Overhead ratio:   {stats['overhead_ratio']:.2f}x")
-    print(f"  Efficiency:       {stats['efficiency_percent']:.2f}%")
+    print(f"  Payload size:     {stats.payload_size} bytes")
+    print(f"  Header size:      {stats.header_size} bytes")
+    print(f"  Total size:       {stats.total_size} bytes")
+    print(f"  Overhead ratio:   {stats.overhead_ratio:.2f}x")
+    print(f"  Efficiency:       {stats.efficiency_percent:.2f}%")
 
     # Decapsulate
     print("\nDecapsulating...")
@@ -73,11 +73,11 @@ def example_efficiency_comparison() -> None:
         stats = stack.get_overhead_stats(payload)
 
         print(
-            f"{stats['payload_size']:<10} "
-            f"{stats['total_size']:<10} "
-            f"{stats['header_size']:<10} "
-            f"{stats['efficiency_percent']:>10.2f}% "
-            f"{stats['overhead_ratio']:>8.2f}x"
+            f"{stats.payload_size:<10} "
+            f"{stats.total_size:<10} "
+            f"{stats.header_size:<10} "
+            f"{stats.efficiency_percent:>10.2f}% "
+            f"{stats.overhead_ratio:>8.2f}x"
         )
 
     print("=" * 70)
@@ -89,7 +89,7 @@ def example_visualize_layers() -> None:
     print("Layer-by-Layer Encapsulation Visualization")
     print("=" * 70)
 
-    encapsulator = Encapsulator()
+    wrangler = EomWrangler()
 
     payload = b"Secret message"
     print(f"\n0. Original payload: {len(payload)} bytes")
@@ -104,25 +104,25 @@ def example_visualize_layers() -> None:
     )
 
     # Layer 2: Inner IP
-    inner_ip = encapsulator.encapsulate_ethernet_in_ip(inner_eth_bytes)
+    inner_ip = wrangler.encapsulate_ethernet_in_tcp_ip(inner_eth_bytes)
     print(
         f"2. Inner IP packet: {len(inner_ip)} bytes (+{len(inner_ip) - len(inner_eth_bytes)} bytes)"
     )
 
     # Layer 3: Inner TCP
-    inner_tcp = encapsulator.encapsulate_ip_in_tcp(inner_ip)
+    inner_tcp = wrangler.encapsulate_ip_in_tcp(inner_ip)
     print(
         f"3. Inner TCP segment: {len(inner_tcp)} bytes (+{len(inner_tcp) - len(inner_ip)} bytes)"
     )
 
     # Layer 4: DNS
-    dns_msg = encapsulator.encapsulate_tcp_in_dns(inner_tcp)
+    dns_msg = wrangler.encapsulate_tcp_in_dns(inner_tcp)
     print(
         f"4. DNS message: {len(dns_msg)} bytes (+{len(dns_msg) - len(inner_tcp)} bytes, includes base64)"
     )
 
     # Layer 5: HTTP
-    http_data = encapsulator.encapsulate_dns_in_http(dns_msg)
+    http_data = wrangler.encapsulate_dns_in_http(dns_msg)
     print(
         f"5. HTTP request: {len(http_data)} bytes (+{len(http_data) - len(dns_msg)} bytes)"
     )

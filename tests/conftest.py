@@ -10,7 +10,7 @@ import pytest
 from scapy.layers.l2 import Ether
 from scapy.packet import Raw
 
-from ethernet_over_macca.encapsulation import Encapsulator
+from ethernet_over_macca.encapsulation import EomWrangler
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 from eom_server.tcp_server import TCPServer
 from eom_server.handlers import RequestHandler
@@ -97,9 +97,9 @@ def temp_output_dir(tmp_path: Path) -> Path:
 
 
 @pytest.fixture(scope="session")
-def encapsulator() -> Encapsulator:
-    """Provide a single instance of the encapsulator for all tests."""
-    return Encapsulator()
+def wrangler() -> EomWrangler:
+    """Provide a single instance of the packet-wranglers for all tests."""
+    return EomWrangler()
 
 
 @pytest.fixture(scope="function")

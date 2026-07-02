@@ -7,44 +7,44 @@ from scapy.layers.inet import IP
 from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A, TXT
 
 from ethernet_over_macca.protocol_stack import EoMaccaStack
-from ethernet_over_macca.encapsulation import Encapsulator
+from ethernet_over_macca.encapsulation import EomWrangler
 
 
 class TestEncapsulation:
     """Test individual encapsulation layers."""
 
-    def test_ethernet_in_ip(self, encapsulator: Encapsulator) -> None:
+    def test_ethernet_in_ip(self, wrangler: EomWrangler) -> None:
         """Test Ethernet frame encapsulation in IP."""
         eth_frame = Ether(src="aa:bb:cc:dd:ee:ff", dst="11:22:33:44:55:66") / Raw(
             load=b"test payload"
         )
         eth_bytes = bytes(eth_frame)
 
-        ip_packet = encapsulator.encapsulate_ethernet_in_ip(eth_bytes)
+        ip_packet = wrangler.encapsulate_ethernet_in_tcp_ip(eth_bytes)
 
         assert len(ip_packet) > len(eth_bytes)
         assert isinstance(ip_packet, bytes)
 
-    def test_ip_in_tcp(self, encapsulator: Encapsulator) -> None:
+    def test_ip_in_tcp(self, wrangler: EomWrangler) -> None:
         """Test IP packet encapsulation in TCP."""
         ip_data = b"fake IP packet data"
-        tcp_segment = encapsulator.encapsulate_ip_in_tcp(ip_data)
+        tcp_segment = wrangler.encapsulate_ip_in_tcp(ip_data)
 
         assert len(tcp_segment) > len(ip_data)
         assert isinstance(tcp_segment, bytes)
 
-    def test_tcp_in_dns(self, encapsulator: Encapsulator) -> None:
+    def test_tcp_in_dns(self, wrangler: EomWrangler) -> None:
         """Test TCP segment encapsulation in DNS."""
         tcp_data = b"fake TCP segment data"
-        dns_message = encapsulator.encapsulate_tcp_in_dns(tcp_data)
+        dns_message = wrangler.encapsulate_tcp_in_dns(tcp_data)
 
         assert len(dns_message) > 0
         assert isinstance(dns_message, (bytes, bytearray))
 
-    def test_dns_in_http(self, encapsulator: Encapsulator) -> None:
+    def test_dns_in_http(self, wrangler: EomWrangler) -> None:
         """Test DNS message encapsulation in HTTP."""
         dns_data = b"fake DNS message"
-        http_request = encapsulator.encapsulate_dns_in_http(dns_data)
+        http_request = wrangler.encapsulate_dns_in_http(dns_data)
 
         assert b"POST" in http_request
         assert b"HTTP/1.1" in http_request
@@ -55,25 +55,25 @@ class TestEncapsulation:
 class TestDecapsulation:
     """Test individual decapsulation layers."""
 
-    def test_http_to_dns(self, encapsulator: Encapsulator) -> None:
+    def test_http_to_dns(self, wrangler: EomWrangler) -> None:
         """Test DNS extraction from HTTP."""
         dns_data = b"fake DNS message"
-        http_request = encapsulator.encapsulate_dns_in_http(dns_data)
+        http_request = wrangler.encapsulate_dns_in_http(dns_data)
 
-        extracted_dns = encapsulator.decapsulate_http_to_payload(http_request)
+        extracted_dns = wrangler.decapsulate_http_to_payload(http_request)
         assert extracted_dns == dns_data
 
-    def test_http_to_dns_invalid(self, encapsulator: Encapsulator) -> None:
+    def test_http_to_dns_invalid(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation with invalid data."""
         with pytest.raises(ValueError):
-            encapsulator.decapsulate_http_to_payload(b"not an HTTP message")
+            wrangler.decapsulate_http_to_payload(b"not an HTTP message")
 
-    def test_dns_roundtrip(self, encapsulator: Encapsulator) -> None:
+    def test_dns_roundtrip(self, wrangler: EomWrangler) -> None:
         """Test DNS encapsulation and decapsulation roundtrip."""
         original_tcp = b"test TCP data for DNS roundtrip"
 
-        dns_msg = encapsulator.encapsulate_tcp_in_dns(original_tcp)
-        recovered_tcp = encapsulator.decapsulate_dns_to_tcp(dns_msg)
+        dns_msg = wrangler.encapsulate_tcp_in_dns(original_tcp)
+        recovered_tcp = wrangler.decapsulate_dns_to_tcp(dns_msg)
 
         assert recovered_tcp == original_tcp
 
@@ -137,11 +137,11 @@ class TestProtocolStack:
 
         stats = stack.get_overhead_stats(payload)
 
-        assert stats["payload_size"] == len(payload)
-        assert stats["total_size"] > stats["payload_size"]
-        assert stats["header_size"] == stats["total_size"] - stats["payload_size"]
-        assert stats["overhead_ratio"] > 0
-        assert 0 < stats["efficiency_percent"] < 100
+        assert stats.payload_size == len(payload)
+        assert stats.total_size > stats.payload_size
+        assert stats.header_size == stats.total_size - stats.payload_size
+        assert stats.overhead_ratio > 0
+        assert 0 < stats.efficiency_percent < 100
 
     def test_overhead_increases_with_small_payloads(self, stack: EoMaccaStack) -> None:
         """Test that overhead ratio is worse for smaller payloads."""
@@ -150,7 +150,7 @@ class TestProtocolStack:
         stats_large = stack.get_overhead_stats(b"X" * 1000)
 
         # Larger payloads should have better efficiency
-        assert stats_large["efficiency_percent"] > stats_small["efficiency_percent"]
+        assert stats_large.efficiency_percent > stats_small.efficiency_percent
 
     def test_custom_addresses(self) -> None:
         """Test stack with custom addresses."""
@@ -203,41 +203,41 @@ class TestEdgeCases:
 class TestDecapsulationValidation:
     """Test validation in decapsulation functions."""
 
-    def test_http_too_short(self, encapsulator: Encapsulator) -> None:
+    def test_http_too_short(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation with too-short data."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_http_to_payload(b"short")
+            wrangler.decapsulate_http_to_payload(b"short")
 
-    def test_http_no_terminator(self, encapsulator: Encapsulator) -> None:
+    def test_http_no_terminator(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation without header terminator."""
 
         with pytest.raises(ValueError, match="no header terminator"):
-            encapsulator.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
+            wrangler.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
 
-    def test_http_empty_body(self, encapsulator: Encapsulator) -> None:
+    def test_http_empty_body(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation with empty body."""
 
         http_msg = b"GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n"
 
         with pytest.raises(ValueError, match="no body"):
-            encapsulator.decapsulate_http_to_payload(http_msg)
+            wrangler.decapsulate_http_to_payload(http_msg)
 
-    def test_dns_too_short(self, encapsulator: Encapsulator) -> None:
+    def test_dns_too_short(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with too-short data."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_dns_to_tcp(b"\x00" * 10)
+            wrangler.decapsulate_dns_to_tcp(b"\x00" * 10)
 
-    def test_dns_no_answers(self, encapsulator: Encapsulator) -> None:
+    def test_dns_no_answers(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with no answer records."""
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
 
         with pytest.raises(ValueError, match="no answer records"):
-            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
+            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_dns_wrong_type(self, encapsulator: Encapsulator) -> None:
+    def test_dns_wrong_type(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with wrong record type."""
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
@@ -252,9 +252,9 @@ class TestDecapsulationValidation:
         )
 
         with pytest.raises(ValueError, match="Expected TXT record"):
-            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
+            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_dns_empty_txt(self, encapsulator: Encapsulator) -> None:
+    def test_dns_empty_txt(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with empty TXT data."""
 
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
@@ -269,24 +269,24 @@ class TestDecapsulationValidation:
         )
 
         with pytest.raises(ValueError, match="empty"):
-            encapsulator.decapsulate_dns_to_tcp(dns_msg.pack())
+            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
 
-    def test_tcp_too_short(self, encapsulator: Encapsulator) -> None:
+    def test_tcp_too_short(self, wrangler: EomWrangler) -> None:
         """Test TCP decapsulation with too-short data."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_tcp_to_ip(b"\x00" * 10)
+            wrangler.decapsulate_tcp_to_ip(b"\x00" * 10)
 
-    def test_ip_too_short(self, encapsulator: Encapsulator) -> None:
+    def test_ip_too_short(self, wrangler: EomWrangler) -> None:
         """Test IP decapsulation with too-short data."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_ip_to_ethernet(b"\x00" * 10)
+            wrangler.decapsulate_ip_to_ethernet(b"\x00" * 10)
 
-    def test_ip_no_payload(self, encapsulator: Encapsulator) -> None:
+    def test_ip_no_payload(self, wrangler: EomWrangler) -> None:
         """Test IP decapsulation with no payload."""
 
         packet = IP(src="10.0.0.1", dst="10.0.0.2")
 
         with pytest.raises(ValueError, match="no payload"):
-            encapsulator.decapsulate_ip_to_ethernet(bytes(packet))
+            wrangler.decapsulate_ip_to_ethernet(bytes(packet))
