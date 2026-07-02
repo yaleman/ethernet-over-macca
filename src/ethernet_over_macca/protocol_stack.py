@@ -100,54 +100,46 @@ class EoMaccaStack:
 
         return bytes(outer_packet)
 
-    def decapsulate(self, packet_bytes: bytes) -> bytes:
+    def decapsulate(self, payload: bytes | Ether, stack_order="ETHDtie") -> bytes:
         """Decapsulate a full EoMacca packet to extract the original payload.
 
         Args:
-            packet_bytes: Complete EoMacca packet bytes
-
+            payload: Complete EoMacca packet bytes
+            stack_order: String representing the order of layers to decapsulate.
+                Default is "ETHDtie" (Ethernet, TCP, HTTP, DNS, inner TCP, inner IP, inner Ethernet).
         Returns:
             Original payload bytes
 
         Raises:
             ValueError: If packet is malformed or cannot be decapsulated
         """
-        # Layer 8: Parse outer Ethernet
-        outer_packet = Ether(packet_bytes)
 
-        if not outer_packet.haslayer(IP):
-            raise ValueError("No outer IP layer found")
+        for layer in stack_order:
+            if layer == "E":
+                # v1 Layer 8+7: Parse outer Ethernet and IP data
+                payload = self.encapsulator.parse_outer_ethernet(payload)
+            elif layer == "T":
+                # v1 Layer 6: Extract outer TCP and get payload bytes
+                payload = self.encapsulator.decapsulate_ether_to_tcp_bytes(payload)  # ty:ignore[invalid-argument-type]
+            elif layer == "H":
+                # v1 Layer 5: Extract HTTP bytes to get DNS
+                payload = self.encapsulator.decapsulate_http_to_payload(payload)  # ty:ignore[invalid-argument-type]
+            elif layer == "D":
+                # v1 Layer 4: Extract DNS bytes to get inner TCP
+                payload = self.encapsulator.decapsulate_dns_to_tcp(payload)  # ty:ignore[invalid-argument-type]
+            elif layer == "t":
+                # v1 Layer 3: Extract inner TCP payload to get inner IP
+                payload = self.encapsulator.decapsulate_tcp_to_ip(payload)  # ty:ignore[invalid-argument-type]
+            elif layer == "i":
+                # Layer 2: Extract inner IP payload to get inner Ethernet
+                payload = self.encapsulator.decapsulate_ip_to_ethernet(payload)  # ty:ignore[invalid-argument-type]
+            elif layer == "e":
+                # Layer 1: Parse inner Ethernet to get payload
+                payload = self.encapsulator.decapsulate_bytes_to_payload(payload)  # ty:ignore[invalid-argument-type]
+            else:
+                raise ValueError(f"Unsupported layer '{layer}' in stack_order")
 
-        # Layer 7: Outer IP already parsed
-        # Layer 6: Extract outer TCP and get HTTP data
-        if not outer_packet.haslayer(TCP):
-            raise ValueError("No outer TCP layer found")
-
-        tcp_layer = outer_packet[TCP]
-        if not tcp_layer.payload:
-            raise ValueError("Outer TCP has no payload")
-
-        # Layer 5: Extract HTTP payload to get DNS
-        http_data = bytes(tcp_layer.payload)
-        dns_msg = self.encapsulator.decapsulate_http_to_dns(http_data)
-
-        # Layer 4: Extract DNS payload to get inner TCP
-        inner_tcp = self.encapsulator.decapsulate_dns_to_tcp(dns_msg)
-
-        # Layer 3: Extract inner TCP payload to get inner IP
-        inner_ip = self.encapsulator.decapsulate_tcp_to_ip(inner_tcp)
-
-        # Layer 2: Extract inner IP payload to get inner Ethernet
-        inner_eth_bytes = self.encapsulator.decapsulate_ip_to_ethernet(inner_ip)
-
-        # Layer 1: Parse inner Ethernet to get payload
-        inner_eth = Ether(inner_eth_bytes)
-        if not inner_eth.payload:
-            # Empty payload is valid
-            return b""
-
-        payload = bytes(inner_eth.payload)
-        return payload
+        return payload  # ty:ignore[invalid-return-type]
 
     def get_overhead_stats(self, payload: bytes) -> dict[str, int | float]:
         """Calculate overhead statistics for a given payload.

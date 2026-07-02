@@ -1,5 +1,7 @@
 """Layer-by-layer encapsulation functions for EoMacca protocol."""
 
+from scapy.layers.l2 import Ether
+
 import base64
 from typing import Final
 
@@ -140,14 +142,14 @@ class Encapsulator:
 
         return http_request + dns_message
 
-    def decapsulate_http_to_dns(self, http_data: bytes) -> bytes:
-        """Extract DNS message from HTTP request/response.
+    def decapsulate_http_to_payload(self, http_data: bytes) -> bytes:
+        """Extract payload from HTTP request/response.
 
         Args:
             http_data: Raw HTTP request or response bytes
 
         Returns:
-            Raw DNS message bytes
+            Raw payload bytes
 
         Raises:
             ValueError: If HTTP data is malformed
@@ -159,12 +161,12 @@ class Encapsulator:
         if header_end == -1:
             raise ValueError("Invalid HTTP message: no header terminator found")
 
-        dns_message = http_data[header_end + 4 :]
+        payload = http_data[header_end + 4 :]
 
-        if len(dns_message) == 0:
+        if len(payload) == 0:
             raise ValueError("HTTP message has no body")
 
-        return dns_message
+        return payload
 
     def decapsulate_dns_to_tcp(self, dns_message: bytes) -> bytes:
         """Extract TCP segment from DNS TXT record.
@@ -212,11 +214,11 @@ class Encapsulator:
 
         return tcp_segment
 
-    def decapsulate_tcp_to_ip(self, tcp_data: bytes) -> bytes:
+    def decapsulate_tcp_to_ip(self, outer_bytes: bytes) -> bytes:
         """Extract IP packet from TCP segment payload.
 
         Args:
-            tcp_data: Raw TCP segment bytes (including IP header)
+            outer_bytes: Raw TCP segment bytes (including IP header)
 
         Returns:
             Raw inner IP packet bytes
@@ -225,13 +227,13 @@ class Encapsulator:
             ValueError: If TCP data is malformed
         """
         min_total = MIN_IP_HEADER + MIN_TCP_HEADER
-        if len(tcp_data) < min_total:
+        if len(outer_bytes) < min_total:
             raise ValueError(
-                f"TCP segment too short: {len(tcp_data)} bytes, minimum is {min_total}"
+                f"TCP segment too short: {len(outer_bytes)} bytes, minimum is {min_total}"
             )
 
         try:
-            packet = IP(tcp_data)
+            packet = IP(outer_bytes)
         except Exception as e:
             raise ValueError(f"Failed to parse IP packet: {e}") from e
 
@@ -252,11 +254,11 @@ class Encapsulator:
 
         return payload
 
-    def decapsulate_ip_to_ethernet(self, ip_data: bytes) -> bytes:
+    def decapsulate_ip_to_ethernet(self, outer_bytes: bytes) -> bytes:
         """Extract Ethernet frame from IP packet payload.
 
         Args:
-            ip_data: Raw IP packet bytes
+            outer_bytes: Raw IP packet bytes
 
         Returns:
             Raw Ethernet frame bytes
@@ -264,13 +266,13 @@ class Encapsulator:
         Raises:
             ValueError: If IP data is malformed
         """
-        if len(ip_data) < MIN_IP_HEADER:
+        if len(outer_bytes) < MIN_IP_HEADER:
             raise ValueError(
-                f"IP packet too short: {len(ip_data)} bytes, minimum is {MIN_IP_HEADER}"
+                f"IP packet too short: {len(outer_bytes)} bytes, minimum is {MIN_IP_HEADER}"
             )
 
         try:
-            packet = IP(ip_data)
+            packet = IP(outer_bytes)
         except Exception as e:
             raise ValueError(f"Failed to parse inner IP packet: {e}") from e
 
@@ -285,3 +287,35 @@ class Encapsulator:
             )
 
         return payload
+
+    def decapsulate_bytes_to_payload(self, outer_bytes: bytes) -> bytes:
+        """Take raw bytes of an Ethernet frame and extract the payload, if any."""
+        inner_eth = Ether(outer_bytes)
+        if not inner_eth.payload:
+            # Empty payload is valid
+            return b""
+
+        return bytes(inner_eth.payload)
+
+    @classmethod
+    def parse_outer_ethernet(cls, packet_bytes: bytes | Ether) -> Ether:
+        """Parse raw bytes into an outer Ethernet packet."""
+        if isinstance(packet_bytes, bytes):
+            outer_packet = Ether(packet_bytes)
+        else:
+            outer_packet = packet_bytes
+
+        if not outer_packet.haslayer(IP):
+            raise ValueError("No outer IP layer found")
+        return outer_packet
+
+    @classmethod
+    def decapsulate_ether_to_tcp_bytes(cls, packet_bytes: Ether) -> bytes:
+        """Extract the payload from the outer TCP layer of an Ethernet packet."""
+        if not packet_bytes.haslayer(TCP):
+            raise ValueError("No outer TCP layer found")
+
+        tcp_layer = packet_bytes[TCP]
+        if not tcp_layer.payload:
+            raise ValueError("Outer TCP has no payload")
+        return bytes(tcp_layer.payload)

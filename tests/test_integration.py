@@ -228,10 +228,10 @@ class TestMalformedPackets:
         """Test handling of malformed HTTP headers."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_http_to_dns(b"short")
+            encapsulator.decapsulate_http_to_payload(b"short")
 
         with pytest.raises(ValueError, match="no header terminator"):
-            encapsulator.decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
+            encapsulator.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
 
     def test_empty_http_body(self, encapsulator: Encapsulator) -> None:
         """Test handling of HTTP with empty body."""
@@ -239,7 +239,7 @@ class TestMalformedPackets:
         http_msg = b"GET / HTTP/1.1\r\nHost: example.com\r\nContent-Length: 0\r\n\r\n"
 
         with pytest.raises(ValueError, match="no body"):
-            encapsulator.decapsulate_http_to_dns(http_msg)
+            encapsulator.decapsulate_http_to_payload(http_msg)
 
     def test_concurrent_malformed_packets(self) -> None:
         """Test server handling of concurrent malformed packets."""

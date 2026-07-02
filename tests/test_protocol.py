@@ -60,13 +60,13 @@ class TestDecapsulation:
         dns_data = b"fake DNS message"
         http_request = encapsulator.encapsulate_dns_in_http(dns_data)
 
-        extracted_dns = encapsulator.decapsulate_http_to_dns(http_request)
+        extracted_dns = encapsulator.decapsulate_http_to_payload(http_request)
         assert extracted_dns == dns_data
 
     def test_http_to_dns_invalid(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation with invalid data."""
         with pytest.raises(ValueError):
-            encapsulator.decapsulate_http_to_dns(b"not an HTTP message")
+            encapsulator.decapsulate_http_to_payload(b"not an HTTP message")
 
     def test_dns_roundtrip(self, encapsulator: Encapsulator) -> None:
         """Test DNS encapsulation and decapsulation roundtrip."""
@@ -207,13 +207,13 @@ class TestDecapsulationValidation:
         """Test HTTP decapsulation with too-short data."""
 
         with pytest.raises(ValueError, match="too short"):
-            encapsulator.decapsulate_http_to_dns(b"short")
+            encapsulator.decapsulate_http_to_payload(b"short")
 
     def test_http_no_terminator(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation without header terminator."""
 
         with pytest.raises(ValueError, match="no header terminator"):
-            encapsulator.decapsulate_http_to_dns(b"GET / HTTP/1.1\r\nno terminator")
+            encapsulator.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
 
     def test_http_empty_body(self, encapsulator: Encapsulator) -> None:
         """Test HTTP decapsulation with empty body."""
@@ -221,7 +221,7 @@ class TestDecapsulationValidation:
         http_msg = b"GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n"
 
         with pytest.raises(ValueError, match="no body"):
-            encapsulator.decapsulate_http_to_dns(http_msg)
+            encapsulator.decapsulate_http_to_payload(http_msg)
 
     def test_dns_too_short(self, encapsulator: Encapsulator) -> None:
         """Test DNS decapsulation with too-short data."""
