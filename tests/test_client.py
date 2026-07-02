@@ -56,12 +56,6 @@ class TestUI:
         """Test warning message."""
         UI.print_warning("Warning message")
 
-    def test_show_progress(self) -> None:
-        """Test progress spinner creation."""
-        progress = UI.show_progress("Processing...")
-        assert progress is not None
-        progress.stop()
-
     def test_print_panel(self) -> None:
         """Test panel printing."""
         UI.print_panel("Panel content", "Panel Title")

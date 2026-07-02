@@ -1,5 +1,7 @@
 """TCP socket server for EoMacca protocol."""
 
+from eom_client import UI
+
 import sys
 
 import atexit
@@ -102,7 +104,7 @@ class TCPServer:
 
             send_packet(client_socket, response_packet)
 
-            self.handler.stats.update_sent(len(response_packet))
+            self.handler.stats.update_sent(len(response_packet), len(response_payload))
         except ConnectionError:
             CONSOLE.print(f"[yellow]Client {address} disconnected[/yellow]")
             return
@@ -175,6 +177,7 @@ class TCPServer:
 def main() -> None:
     """Run the TCP server."""
 
+    UI()
     mode = sys.argv[1] if len(sys.argv) > 1 else "echo"
     server = TCPServer(mode=mode)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
     server.start()

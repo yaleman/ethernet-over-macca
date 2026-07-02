@@ -13,7 +13,7 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Chat Demo")
 
-    CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
+    CONSOLE.print("[dim]Make sure the server is running:[/dim]")
     CONSOLE.print("[dim]  just server-tcp chat[/dim]\n")
 
     CONSOLE.print(

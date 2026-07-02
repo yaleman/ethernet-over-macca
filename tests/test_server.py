@@ -32,7 +32,7 @@ class TestStatistics:
     def test_update_sent(self) -> None:
         """Test updating sent packet statistics."""
         stats = Statistics()
-        stats.update_sent(packet_size=500)
+        stats.update_sent(packet_size=500, payload_size=50)
 
         assert stats.packets_sent == 1
         assert stats.bytes_sent == 500
@@ -43,14 +43,14 @@ class TestStatistics:
 
         stats.update_received(500, 50)
         stats.update_received(600, 60)
-        stats.update_sent(500)
-        stats.update_sent(600)
+        stats.update_sent(500, 50)
+        stats.update_sent(600, 60)
 
         assert stats.packets_received == 2
         assert stats.packets_sent == 2
         assert stats.bytes_received == 1100
         assert stats.bytes_sent == 1100
-        assert stats.total_overhead == 990  # (500-50) + (600-60)
+        assert stats.total_overhead == 500 + 600 + 500 + 600 - (50 + 60 + 50 + 60)
 
     def test_get_uptime(self) -> None:
         """Test uptime calculation."""

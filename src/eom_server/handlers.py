@@ -22,22 +22,30 @@ class Statistics:
     packets_sent: int = 0
     bytes_received: int = 0
     bytes_sent: int = 0
-    total_overhead: int = 0
+    rx_overhead: int = 0
+    tx_overhead: int = 0
+
     start_time: float = field(default_factory=time.time)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    @property
+    def total_overhead(self) -> int:
+        """Calculate total overhead in bytes."""
+        return self.rx_overhead + self.tx_overhead
 
     def update_received(self, packet_size: int, payload_size: int) -> None:
         """Update statistics for received packet."""
         with self._lock:
             self.packets_received += 1
             self.bytes_received += packet_size
-            self.total_overhead += packet_size - payload_size
+            self.rx_overhead += packet_size - payload_size
 
-    def update_sent(self, packet_size: int) -> None:
+    def update_sent(self, packet_size: int, payload_size: int) -> None:
         """Update statistics for sent packet."""
         with self._lock:
             self.packets_sent += 1
             self.bytes_sent += packet_size
+            self.tx_overhead += packet_size - payload_size
 
     def get_uptime(self) -> float:
         """Get server uptime in seconds."""
@@ -50,14 +58,24 @@ class Statistics:
             try:
                 CONSOLE.print("\n[bold cyan]Server Statistics[/bold cyan]")
                 CONSOLE.print(f"  Uptime: {uptime:.2f}s")
-                CONSOLE.print(f"  Packets RX: {self.packets_received}")
-                CONSOLE.print(f"  Packets TX: {self.packets_sent}")
-                CONSOLE.print(f"  Bytes RX: {self.bytes_received:,}")
-                CONSOLE.print(f"  Bytes TX: {self.bytes_sent:,}")
-                CONSOLE.print(f"  Overhead: {self.total_overhead:,} bytes")
                 if self.packets_received > 0:
-                    avg_overhead = self.total_overhead / self.packets_received
-                    CONSOLE.print(f"  Avg overhead: {avg_overhead:.1f} bytes/packet")
+                    CONSOLE.print(f"  Packets RX: {self.packets_received}")
+                    CONSOLE.print(f"  Packets TX: {self.packets_sent}")
+                    CONSOLE.print(
+                        f"  Bytes RX: {self.bytes_received:,} (overhead: {self.rx_overhead:,})"
+                    )
+                    CONSOLE.print(
+                        f"  Bytes TX: {self.bytes_sent:,} (overhead: {self.tx_overhead:,})"
+                    )
+                    total_transferred = self.bytes_received + self.bytes_sent
+                    payload_transferred = total_transferred - self.total_overhead
+                    avg_over = self.total_overhead / self.packets_received
+                    CONSOLE.print(f"  Total transferred: {total_transferred:,} bytes")
+                    CONSOLE.print(f"  Payload data:      {payload_transferred:,} bytes")
+                    CONSOLE.print(f"  Overhead:          {self.total_overhead:,} bytes")
+                    CONSOLE.print(f"  Avg overhead:      {avg_over:.1f} bytes/packet")
+                else:
+                    CONSOLE.print("  No packets received yet.")
             except Exception as e:
                 if "pytest" in sys.modules:
                     # because it's shutting down, we don't want to raise an exception in pytest because the logger has been closed
@@ -129,7 +147,7 @@ class RequestHandler:
             client_time = float(payload.decode("utf-8"))
             server_time = time.time()
 
-            CONSOLE.print("[blue]PING! Sending PONG![/blue]")
+            CONSOLE.print("[yellow]PING! Sending PONG![/yellow]")
 
             response = f"{client_time},{server_time}".encode("utf-8")
             return response

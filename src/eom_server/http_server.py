@@ -62,7 +62,7 @@ class HTTPServer:
                 f"[cyan]Sending response:[/cyan] {len(response_packet)} bytes"
             )
 
-            self.handler.stats.update_sent(len(response_packet))
+            self.handler.stats.update_sent(len(response_packet), len(response_payload))
 
             return Response(
                 response_packet,
@@ -75,6 +75,8 @@ class HTTPServer:
             CONSOLE.print(f"[bold red]Error:[/bold red] {e}")
             error_msg = f"Error: {str(e)}".encode("utf-8")
             error_packet = self.stack.encapsulate(error_msg)
+
+            self.handler.stats.update_sent(len(error_packet), len(error_msg))
 
             return Response(
                 error_packet, status=500, mimetype="application/dns-message"

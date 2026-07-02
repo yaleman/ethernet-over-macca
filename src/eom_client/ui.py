@@ -1,12 +1,13 @@
 """Terminal UI utilities for EoMacca client."""
 
+import sys
+
 from ethernet_over_macca import get_logger
 
 import time
 from typing import Any
 
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.tree import Tree
 
@@ -15,6 +16,11 @@ CONSOLE = get_logger()
 
 class UI:
     """Terminal UI helper for EoMacca client."""
+
+    def __init__(self) -> None:
+
+        if "--clear" in sys.argv:
+            CONSOLE.clear()
 
     @staticmethod
     def print_header(title: str) -> None:
@@ -85,32 +91,22 @@ class UI:
     @staticmethod
     def print_success(message: str) -> None:
         """Print success message."""
-        CONSOLE.print(f"[bold green]✓[/bold green] {message}")
+        CONSOLE.print(f"[bold green]✓ {message}[/bold green]")
 
     @staticmethod
     def print_error(message: str) -> None:
         """Print error message."""
-        CONSOLE.print(f"[bold red]✗[/bold red] {message}")
+        CONSOLE.print(f"[bold red]✗ {message}[/bold red]")
 
     @staticmethod
     def print_info(message: str) -> None:
         """Print info message."""
-        CONSOLE.print(f"[blue]ℹ[/blue] {message}")
+        CONSOLE.print(f"[blue]ℹ {message}[/blue]")
 
     @staticmethod
     def print_warning(message: str) -> None:
         """Print warning message."""
-        CONSOLE.print(f"[yellow]⚠[/yellow] {message}")
-
-    @staticmethod
-    def show_progress(description: str) -> Progress:
-        """Create and return a progress spinner."""
-        progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=CONSOLE,
-        )
-        return progress
+        CONSOLE.print(f"[yellow]⚠ {message}[/yellow]")
 
     @staticmethod
     def print_panel(content: str, title: str, style: str = "cyan") -> None:
