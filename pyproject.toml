@@ -27,6 +27,7 @@ dev = [
     "types-flask>=1.1.0",
     "types-requests>=2.31.0",
     "ty>=0.0.52",
+    "coveralls>=4.1.0",
 ]
 
 [tool.ruff.lint]
