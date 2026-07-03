@@ -98,10 +98,10 @@ class EoMaccaStack:
                 payload = self.wrangler.encapsulate_tcp_in_dns(payload)
             elif layer == "H":
                 # Layer 5: Encapsulate DNS in HTTP
-                payload = self.wrangler.encapsulate_dns_in_http(payload)
+                payload = self.wrangler.encapsulate_http(payload)
             elif layer == "T":
                 # Layer 6: Encapsulate HTTP in outer TCP
-                payload = self.wrangler.encapsulate_http_in_ip(payload)
+                payload = self.wrangler.encapsulate_bytes_in_tcp_ip(payload)
 
             elif layer == "E":
                 # Layer 7: Outer IP (already included in scapy packet above)
@@ -126,7 +126,7 @@ class EoMaccaStack:
         for layer in self.stack_order:
             if layer == "E":
                 # v1 Layer 8+7: Parse outer Ethernet and IP data
-                payload = self.wrangler.parse_outer_ethernet(payload)
+                payload = self.wrangler.decapsulate_eoip(payload)
             elif layer == "T":
                 # v1 Layer 6: Extract outer TCP and get payload bytes
                 payload = self.wrangler.decapsulate_ether_to_tcp_bytes(payload)  # ty:ignore[invalid-argument-type]

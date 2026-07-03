@@ -122,7 +122,7 @@ def example_visualize_layers() -> None:
     )
 
     # Layer 5: HTTP
-    http_data = wrangler.encapsulate_dns_in_http(dns_msg)
+    http_data = wrangler.encapsulate_http(dns_msg)
     print(
         f"5. HTTP request: {len(http_data)} bytes (+{len(http_data) - len(dns_msg)} bytes)"
     )

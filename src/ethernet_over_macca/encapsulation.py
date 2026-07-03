@@ -1,5 +1,7 @@
 """Layer-by-layer encapsulation functions for EoMacca protocol."""
 
+from dataclasses import dataclass
+
 from scapy.layers.l2 import Ether
 
 import base64
@@ -26,45 +28,33 @@ OUTER_DST_MAC: Final[str] = "aa:bb:cc:dd:ee:ff"
 DNS_DOMAIN: Final[str] = "data.eomacca.example.com"
 HTTP_HOST: Final[str] = "eomacca.example.com"
 HTTP_PATH: Final[str] = "/eomacca/v1/tunnel"
-
+HTTP_CONTENT_TYPE: Final[str] = "application/octet-stream"
+HTTP_USER_AGENT: Final[str] = "EoMacca/1.0 (Unnecessarily Complex Protocol)"
 
 MIN_ETH_HEADER: Final[int] = 14
 MIN_IP_HEADER: Final[int] = 20
 MIN_TCP_HEADER: Final[int] = 20
 
 
+@dataclass
 class EomWrangler:
     """Encapsulation functions for EoMacca protocol."""
 
-    def __init__(
-        self,
-        inner_src_ip: str = INNER_SRC_IP,
-        inner_dst_ip: str = INNER_DST_IP,
-        inner_src_port: int = INNER_SRC_PORT,
-        inner_dst_port: int = INNER_DST_PORT,
-        outer_src_ip: str = OUTER_SRC_IP,
-        outer_dst_ip: str = OUTER_DST_IP,
-        outer_src_port: int = OUTER_SRC_PORT,
-        outer_dst_port: int = OUTER_DST_PORT,
-        outer_src_mac: str = OUTER_SRC_MAC,
-        outer_dst_mac: str = OUTER_DST_MAC,
-        dns_domain: str = DNS_DOMAIN,
-        http_host: str = HTTP_HOST,
-        http_path: str = HTTP_PATH,
-    ) -> None:
-        self.inner_src_ip = inner_src_ip
-        self.inner_dst_ip = inner_dst_ip
-        self.inner_src_port = inner_src_port
-        self.inner_dst_port = inner_dst_port
-        self.outer_src_ip = outer_src_ip
-        self.outer_dst_ip = outer_dst_ip
-        self.outer_src_port = outer_src_port
-        self.outer_dst_port = outer_dst_port
-        self.outer_src_mac = outer_src_mac
-        self.outer_dst_mac = outer_dst_mac
-        self.dns_domain = dns_domain
-        self.http_host = http_host
-        self.http_path = http_path
+    inner_src_ip: str = INNER_SRC_IP
+    inner_dst_ip: str = INNER_DST_IP
+    inner_src_port: int = INNER_SRC_PORT
+    inner_dst_port: int = INNER_DST_PORT
+    outer_src_ip: str = OUTER_SRC_IP
+    outer_dst_ip: str = OUTER_DST_IP
+    outer_src_port: int = OUTER_SRC_PORT
+    outer_dst_port: int = OUTER_DST_PORT
+    outer_src_mac: str = OUTER_SRC_MAC
+    outer_dst_mac: str = OUTER_DST_MAC
+    dns_domain: str = DNS_DOMAIN
+    http_host: str = HTTP_HOST
+    http_path: str = HTTP_PATH
+    http_content_type: str = HTTP_CONTENT_TYPE
+    user_agent: str = HTTP_USER_AGENT
 
     def encapsulate_ethernet_in_tcp_ip(self, eth_frame: bytes) -> bytes:
         """Encapsulate an Ethernet frame as the payload of a TCP/IP packet.
@@ -155,11 +145,11 @@ class EomWrangler:
 
         return dns_msg.pack()  # type: ignore[no-any-return]
 
-    def encapsulate_dns_in_http(self, dns_message: bytes) -> bytes:
+    def encapsulate_http(self, payload_bytes: bytes) -> bytes:
         """Encapsulate a DNS message in an HTTP POST request.
 
         Args:
-            dns_message: Raw DNS message bytes
+            payload_bytes: Raw DNS message bytes
 
         Returns:
             Raw HTTP request bytes
@@ -167,17 +157,16 @@ class EomWrangler:
         http_request = (
             f"POST {self.http_path} HTTP/1.1\r\n"
             f"Host: {self.http_host}\r\n"
-            f"Content-Type: application/dns-message\r\n"
-            f"Content-Length: {len(dns_message)}\r\n"
-            f"User-Agent: EoMacca/1.0 (Unnecessarily Complex Protocol)\r\n"
+            f"Content-Type: {self.http_content_type}\r\n"
+            f"Content-Length: {len(payload_bytes)}\r\n"
+            f"User-Agent: {self.user_agent}\r\n"
             f"Cookie: overhead=yes\r\n"
             f"Connection: keep-alive\r\n"
             f"\r\n"
         ).encode("ascii")
+        return http_request + payload_bytes
 
-        return http_request + dns_message
-
-    def encapsulate_http_in_ip(self, http_request: bytes) -> bytes:
+    def encapsulate_bytes_in_tcp_ip(self, http_request: bytes) -> bytes:
 
         return (
             IP(src=self.outer_src_ip, dst=self.outer_dst_ip)
@@ -347,7 +336,7 @@ class EomWrangler:
         return bytes(inner_eth.payload)
 
     @classmethod
-    def parse_outer_ethernet(cls, packet_bytes: bytes | Ether) -> Ether:
+    def decapsulate_eoip(cls, packet_bytes: bytes | Ether) -> Ether:
         """Parse raw bytes into an outer Ethernet packet."""
         if isinstance(packet_bytes, bytes):
             outer_packet = Ether(packet_bytes)

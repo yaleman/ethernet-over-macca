@@ -44,11 +44,11 @@ class TestEncapsulation:
     def test_dns_in_http(self, wrangler: EomWrangler) -> None:
         """Test DNS message encapsulation in HTTP."""
         dns_data = b"fake DNS message"
-        http_request = wrangler.encapsulate_dns_in_http(dns_data)
+        http_request = wrangler.encapsulate_http(dns_data)
 
         assert b"POST" in http_request
         assert b"HTTP/1.1" in http_request
-        assert b"Content-Type: application/dns-message" in http_request
+        assert f"Content-Type: {wrangler.http_content_type}".encode() in http_request
         assert dns_data in http_request
 
 
@@ -58,7 +58,7 @@ class TestDecapsulation:
     def test_http_to_dns(self, wrangler: EomWrangler) -> None:
         """Test DNS extraction from HTTP."""
         dns_data = b"fake DNS message"
-        http_request = wrangler.encapsulate_dns_in_http(dns_data)
+        http_request = wrangler.encapsulate_http(dns_data)
 
         extracted_dns = wrangler.decapsulate_http_to_payload(http_request)
         assert extracted_dns == dns_data
