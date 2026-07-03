@@ -1,6 +1,7 @@
 """Ping/latency demo for EoMacca protocol."""
 
 from ethernet_over_macca import get_logger
+from ethernet_over_macca.cli import parse_demo_layer_order
 from eom_client.tcp_client import TCPClient
 from eom_client.ui import UI
 
@@ -12,7 +13,19 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Ping Demo")
 
-    client = TCPClient()
+    layer_order = parse_demo_layer_order("demo.ping_demo")
+
+    if layer_order is None:
+        CONSOLE.print(
+            "[dim]Make sure the server is running: just server-tcp ping[/dim]\n"
+        )
+    else:
+        CONSOLE.print(
+            f"[dim]Make sure the server is running: "
+            f"just server-tcp ping --layers {layer_order}[/dim]\n"
+        )
+
+    client = TCPClient(layer_order=layer_order)
 
     try:
         rtts = client.ping(count=10)

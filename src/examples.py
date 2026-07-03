@@ -1,14 +1,8 @@
 """Usage examples for the EoMacca protocol stack."""
 
-from __future__ import annotations
-
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 
-from ethernet_over_macca.encapsulation import Encapsulator
-
-from scapy.layers.l2 import Ether
-from scapy.layers.inet import IP, TCP
-from scapy.packet import Raw
+from ethernet_over_macca.encapsulation import EomWrangler
 
 
 def example_basic_encapsulation() -> None:
@@ -33,11 +27,11 @@ def example_basic_encapsulation() -> None:
     # Show overhead stats
     stats = stack.get_overhead_stats(payload)
     print("\nOverhead Statistics:")
-    print(f"  Payload size:     {stats['payload_size']} bytes")
-    print(f"  Header size:      {stats['header_size']} bytes")
-    print(f"  Total size:       {stats['total_size']} bytes")
-    print(f"  Overhead ratio:   {stats['overhead_ratio']:.2f}x")
-    print(f"  Efficiency:       {stats['efficiency_percent']:.2f}%")
+    print(f"  Payload size:     {stats.payload_size} bytes")
+    print(f"  Header size:      {stats.header_size} bytes")
+    print(f"  Total size:       {stats.total_size} bytes")
+    print(f"  Overhead ratio:   {stats.overhead_ratio:.2f}x")
+    print(f"  Efficiency:       {stats.efficiency_percent:.2f}%")
 
     # Decapsulate
     print("\nDecapsulating...")
@@ -73,83 +67,93 @@ def example_efficiency_comparison() -> None:
         stats = stack.get_overhead_stats(payload)
 
         print(
-            f"{stats['payload_size']:<10} "
-            f"{stats['total_size']:<10} "
-            f"{stats['header_size']:<10} "
-            f"{stats['efficiency_percent']:>10.2f}% "
-            f"{stats['overhead_ratio']:>8.2f}x"
+            f"{stats.payload_size:<10} "
+            f"{stats.total_size:<10} "
+            f"{stats.header_size:<10} "
+            f"{stats.efficiency_percent:>10.2f}% "
+            f"{stats.overhead_ratio:>8.2f}x"
         )
 
     print("=" * 70)
 
 
 def example_visualize_layers() -> None:
-    """Visualize the layer-by-layer encapsulation."""
+    """Visualize the layer-by-layer encapsulation using the v2 clean API."""
     print("\n" + "=" * 70)
     print("Layer-by-Layer Encapsulation Visualization")
     print("=" * 70)
 
-    encapsulator = Encapsulator()
+    wrangler = EomWrangler()
 
     payload = b"Secret message"
     print(f"\n0. Original payload: {len(payload)} bytes")
 
     # Layer 1: Inner Ethernet
-    inner_eth = Ether(src="de:ad:be:ef:ca:fe", dst="fe:ed:fa:ce:de:ad") / Raw(
-        load=payload
+    inner_eth = wrangler.encapsulate_ethernet(
+        payload,
+        src_mac="de:ad:be:ef:ca:fe",
+        dst_mac="fe:ed:fa:ce:de:ad",
     )
-    inner_eth_bytes = bytes(inner_eth)
     print(
-        f"1. Inner Ethernet frame: {len(inner_eth_bytes)} bytes (+{len(inner_eth_bytes) - len(payload)} bytes)"
+        f"1. Inner Ethernet frame: {len(inner_eth)} bytes (+{len(inner_eth) - len(payload)} bytes)"
     )
 
     # Layer 2: Inner IP
-    inner_ip = encapsulator.encapsulate_ethernet_in_ip(inner_eth_bytes)
+    inner_ip = wrangler.encapsulate_ip(
+        inner_eth, src_ip="10.255.255.1", dst_ip="10.255.255.2", proto=6
+    )
     print(
-        f"2. Inner IP packet: {len(inner_ip)} bytes (+{len(inner_ip) - len(inner_eth_bytes)} bytes)"
+        f"2. Inner IP packet: {len(inner_ip)} bytes (+{len(inner_ip) - len(inner_eth)} bytes)"
     )
 
-    # Layer 3: Inner TCP
-    inner_tcp = encapsulator.encapsulate_ip_in_tcp(inner_ip)
+    # Layer 3: Inner TCP+IP
+    inner_tcp = wrangler.encapsulate_tcp(
+        inner_ip,
+        src_ip="10.255.255.1",
+        dst_ip="10.255.255.2",
+        src_port=31337,
+        dst_port=31338,
+    )
     print(
-        f"3. Inner TCP segment: {len(inner_tcp)} bytes (+{len(inner_tcp) - len(inner_ip)} bytes)"
+        f"3. Inner TCP/IP segment: {len(inner_tcp)} bytes (+{len(inner_tcp) - len(inner_ip)} bytes)"
     )
 
     # Layer 4: DNS
-    dns_msg = encapsulator.encapsulate_tcp_in_dns(inner_tcp)
+    dns_msg = wrangler.encapsulate_dns(inner_tcp)
     print(
         f"4. DNS message: {len(dns_msg)} bytes (+{len(dns_msg) - len(inner_tcp)} bytes, includes base64)"
     )
 
     # Layer 5: HTTP
-    http_data = encapsulator.encapsulate_dns_in_http(dns_msg)
+    http_data = wrangler.encapsulate_http(dns_msg)
     print(
         f"5. HTTP request: {len(http_data)} bytes (+{len(http_data) - len(dns_msg)} bytes)"
     )
 
-    # Layer 6: Outer TCP
-    outer_tcp = (
-        IP(src="192.168.1.100", dst="192.168.1.200")
-        / TCP(sport=54321, dport=9999, flags="PA")
-        / Raw(load=http_data)
+    # Layer 6: Outer TCP+IP
+    outer_tcp = wrangler.encapsulate_tcp(
+        http_data,
+        src_ip="192.168.1.100",
+        dst_ip="192.168.1.200",
+        src_port=54321,
+        dst_port=9999,
+        seq=2000,
+        ack=2000,
     )
-    outer_tcp_bytes = bytes(outer_tcp)
     print(
-        f"6. Outer TCP segment: {len(outer_tcp_bytes)} bytes (+{len(outer_tcp_bytes) - len(http_data)} bytes)"
+        f"6. Outer TCP/IP segment: {len(outer_tcp)} bytes (+{len(outer_tcp) - len(http_data)} bytes)"
     )
 
-    # Layer 7: Outer IP (already in outer_tcp)
-    # Layer 8: Outer Ethernet
-    outer_packet = Ether(src="00:11:22:33:44:55", dst="aa:bb:cc:dd:ee:ff") / outer_tcp
-    outer_packet_bytes = bytes(outer_packet)
+    # Layer 7: Outer Ethernet (fixed transport)
+    outer_packet = wrangler.encapsulate_outer_ethernet(
+        outer_tcp, src_mac="00:11:22:33:44:55", dst_mac="aa:bb:cc:dd:ee:ff"
+    )
     print(
-        f"7. Outer Ethernet frame: {len(outer_packet_bytes)} bytes (+{len(outer_packet_bytes) - len(outer_tcp_bytes)} bytes)"
+        f"7. Outer Ethernet frame: {len(outer_packet)} bytes (+{len(outer_packet) - len(outer_tcp)} bytes)"
     )
 
-    print(f"\nTotal overhead: {len(outer_packet_bytes) - len(payload)} bytes")
-    print(
-        f"Overhead ratio: {(len(outer_packet_bytes) - len(payload)) / len(payload):.2f}x"
-    )
+    print(f"\nTotal overhead: {len(outer_packet) - len(payload)} bytes")
+    print(f"Overhead ratio: {(len(outer_packet) - len(payload)) / len(payload):.2f}x")
 
     print("=" * 70)
 

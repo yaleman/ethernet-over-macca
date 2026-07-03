@@ -7,6 +7,7 @@ from typing import Optional
 import requests
 
 from ethernet_over_macca import get_logger
+from ethernet_over_macca.encapsulation import Layer
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 
 CONSOLE = get_logger()
@@ -19,16 +20,22 @@ class HTTPClient:
         self,
         base_url: str = "http://127.0.0.1:8080",
         timeout: float = 30.0,
+        layer_order: str | list[Layer] | None = None,
     ) -> None:
         """Initialize HTTP client.
 
         Args:
             base_url: Base URL of the EoMacca HTTP server
             timeout: Request timeout in seconds
+            layer_order: v2 configurable layer ordering, decap order (outer ->
+                inner). Accepts a v2 layer-order string like ``"THDtIE"``
+                (see :func:`parse_layer_order`) or a ``list[Layer]``. ``None``
+                uses the v1-compatible default. The server must use the same
+                ordering or decapsulation will fail cleanly with ``EomError``.
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self.stack = EoMaccaStack()
+        self.stack = EoMaccaStack(layer_order=layer_order)
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/dns-message"})
 

@@ -242,12 +242,20 @@ Table of Contents
       Host: eomacca.example.com
       Content-Type: application/dns-message
       Content-Length: [length of DNS message]
-      User-Agent: EoMacca/1.0 (Unnecessarily Complex Protocol)
+      User-Agent: EoMacca/2.0 (Unnecessarily Complex Protocol)
       Connection: keep-alive
 
       [DNS message bytes]
 
+   The Content-Type request header is informational only. A server MUST
+   accept the request body regardless of the header value; clients MAY set
+   "application/dns-message" for diagnostic compatibility, but receivers
+   SHALL NOT reject based on a mismatched or absent Content-Type. This
+   keeps the protocol robust to legacy proxies that rewrite or strip
+   Content-Type headers.
+
    The HTTP layer SHOULD include a Cookie header with the value
+   "overhead=yes" to properly signal the nature of this protocol.
    "overhead=yes" to properly signal the nature of this protocol.
 
    Servers responding to EoMacca requests MUST respond with HTTP 200 OK

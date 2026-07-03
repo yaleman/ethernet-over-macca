@@ -3,7 +3,8 @@
 import time
 from pathlib import Path
 
-
+import eom_server
+import src
 from eom_server.handlers import RequestHandler, Statistics
 
 
@@ -59,6 +60,31 @@ class TestStatistics:
         uptime = stats.get_uptime()
         assert uptime >= 0.1
         assert uptime < 1.0
+
+
+class TestModuleExports:
+    """Guard against lying ``__all__`` lists."""
+
+    def test_eom_server_all_exports_are_importable(self) -> None:
+        """Every name in eom_server.__all__ must be importable.
+
+        Regression for the lying ``__all__`` bug: ``eom_server/__init__.py``
+        listed ``TCPServer``, ``HTTPServer``, ``RequestHandler`` without
+        importing them, so ``from eom_server import TCPServer`` raised.
+        """
+        for name in eom_server.__all__:
+            assert hasattr(eom_server, name), (
+                f"{name!r} is in eom_server.__all__ but is not exported"
+            )
+
+    def test_src_all_exports_are_defined(self) -> None:
+        """Every name in src.__all__ must exist on the module.
+
+        Regression for the lying ``__all__`` bug: ``src/__init__.py`` listed
+        ``"Encapsulator"`` which was never defined.
+        """
+        for name in src.__all__:
+            assert hasattr(src, name), f"{name!r} in src.__all__ is not defined"
 
 
 class TestRequestHandler:

@@ -82,6 +82,39 @@ just server-tcp file    # File receiver
 just server-tcp ping    # Latency measurement
 ```
 
+## Custom Layer Ordering
+
+The configurable layer stack (v2) lets you choose your own layer sequence
+out-of-band; the sender and receiver must agree. The default reproduces
+the v1 wire format.
+
+The five configurable layers, each identified by a single character in the
+order string:
+
+| Char | Layer         |
+| ---- | ------------- |
+| `E`  | Ethernet      |
+| `I`  | IP            |
+| `T`  | TCP (over IP) |
+| `D`  | DNS (TXT)     |
+| `H`  | HTTP          |
+
+The order string is read outer -> inner. The outermost character must be
+`T` or `I` (it carries the outer IP envelope). So `"THDtIE"` decodes as
+`TCP -> HTTP -> DNS -> TCP -> IP -> Ethernet`.
+
+```bash
+# TCP server and demo using a custom layer ordering
+just server-tcp echo --layers THDtIE
+just demo-echo      --layers THDtIE
+
+# HTTP server and HTTP client also accept --layers now
+just server-http echo --layers THDtIE
+```
+
+See `parse_layer_order` in `src/ethernet_over_macca/encapsulation.py` for
+the parser and `src/ethernet_over_macca/cli.py` for the CLI plumbing.
+
 ## Running Demos
 
 All demos require a server running first.

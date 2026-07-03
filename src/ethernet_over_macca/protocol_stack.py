@@ -1,175 +1,283 @@
-"""Main protocol stack implementation for EoMacca."""
-
-from typing import Final
+"""Main protocol stack implementation for EoMacca v2."""
 
 from scapy.config import conf
-from scapy.layers.inet import IP, TCP
-from scapy.layers.l2 import Ether
-from scapy.packet import Raw
 
-from .encapsulation import Encapsulator
+from ethernet_over_macca.encapsulation import (
+    OUTER_DST_MAC,
+    OUTER_DST_PORT,
+    OUTER_SRC_MAC,
+    OUTER_SRC_PORT,
+    OUTER_DST_IP,
+    OUTER_SRC_IP,
+    INNER_DST_IP,
+    INNER_SRC_IP,
+    INNER_DST_PORT,
+    INNER_SRC_PORT,
+    DEFAULT_LAYER_ORDER,
+    EomWrangler,
+    Layer,
+    LayerConfig,
+    parse_layer_order,
+)
+from ethernet_over_macca.stats import PayloadStats
 
+
+# Keep scapy from padding Ether/IP/TCP layers when converting to bytes; this
+# was the source of the 0xAAAAAAAA bug. v2's non-greedy decap does not depend
+# on this, but encap still uses scapy to serialise, so the setting stays.
 conf.padding = 0
-
-# Outer layer defaults
-OUTER_SRC_IP: Final[str] = "192.168.1.100"
-OUTER_DST_IP: Final[str] = "192.168.1.200"
-OUTER_SRC_PORT: Final[int] = 54321
-OUTER_DST_PORT: Final[int] = 9999  # EoMacca default port
-OUTER_SRC_MAC: Final[str] = "00:11:22:33:44:55"
-OUTER_DST_MAC: Final[str] = "aa:bb:cc:dd:ee:ff"
 
 
 class EoMaccaStack:
-    """The complete EoMacca protocol stack implementation.
+    """The EoMacca v2 protocol stack.
 
-    This class handles the full 8-layer encapsulation process:
-    Ethernet -> IP -> TCP -> HTTP -> DNS -> TCP -> IP -> Ethernet
+    Wire layout::
+
+        [ Outer Ethernet (14 B, fixed) ]
+        [ Outermost configurable layer (must contribute an outer
+          IP envelope: Layer.TCP or Layer.IP) ]
+        [ ...arbitrary inner layers in any order, any count... ]
+        [ payload ]
+
+    Per the v2 design, the outer Ethernet and the outer IP envelope are a
+    hard transport limit. The outer IP is contributed by the outermost
+    configurable layer (a ``Layer.TCP`` includes both IP and TCP headers; a
+    ``Layer.IP`` includes just the IP header). The layer order is configured
+    out-of-band; there is no in-band negotiation. The default config
+    reproduces v1's ``"ETHDtie"`` wire format byte-for-byte.
     """
 
     def __init__(
         self,
+        *,
+        inner_src_ip: str = INNER_SRC_IP,
+        inner_dst_ip: str = INNER_DST_IP,
+        inner_src_port: int = INNER_SRC_PORT,
+        inner_dst_port: int = INNER_DST_PORT,
         outer_src_ip: str = OUTER_SRC_IP,
         outer_dst_ip: str = OUTER_DST_IP,
         outer_src_port: int = OUTER_SRC_PORT,
         outer_dst_port: int = OUTER_DST_PORT,
         outer_src_mac: str = OUTER_SRC_MAC,
         outer_dst_mac: str = OUTER_DST_MAC,
+        layers: list[LayerConfig] | None = None,
+        layer_order: list[Layer] | str | None = None,
     ) -> None:
-        """Initialize the EoMacca protocol stack.
+        """Initialise an EoMacca stack.
 
         Args:
-            outer_src_ip: Source IP for outer IP layer
-            outer_dst_ip: Destination IP for outer IP layer
-            outer_src_port: Source port for outer TCP layer
-            outer_dst_port: Destination port for outer TCP layer
-            outer_src_mac: Source MAC for outer Ethernet layer
-            outer_dst_mac: Destination MAC for outer Ethernet layer
-        """
-        self.outer_src_ip = outer_src_ip
-        self.outer_dst_ip = outer_dst_ip
-        self.outer_src_port = outer_src_port
-        self.outer_dst_port = outer_dst_port
-        self.outer_src_mac = outer_src_mac
-        self.outer_dst_mac = outer_dst_mac
-        self.encapsulator = Encapsulator()
-
-    def encapsulate(self, payload: bytes) -> bytes:
-        """Encapsulate payload through all 8 layers of the protocol stack.
-
-        Args:
-            payload: The actual data to transmit
-
-        Returns:
-            Fully encapsulated packet bytes ready for transmission
-        """
-        # Layer 1: Create inner Ethernet frame with payload
-        inner_eth = Ether(src="de:ad:be:ef:ca:fe", dst="fe:ed:fa:ce:de:ad") / Raw(
-            load=payload
-        )
-        inner_eth_bytes = bytes(inner_eth)
-
-        # Layer 2: Encapsulate inner Ethernet in inner IP
-        inner_ip = self.encapsulator.encapsulate_ethernet_in_ip(inner_eth_bytes)
-
-        # Layer 3: Encapsulate inner IP in inner TCP
-        inner_tcp = self.encapsulator.encapsulate_ip_in_tcp(inner_ip)
-
-        # Layer 4: Encapsulate inner TCP in DNS
-        dns_msg = self.encapsulator.encapsulate_tcp_in_dns(inner_tcp)
-
-        # Layer 5: Encapsulate DNS in HTTP
-        http_data = self.encapsulator.encapsulate_dns_in_http(dns_msg)
-
-        # Layer 6: Encapsulate HTTP in outer TCP
-        outer_tcp = (
-            IP(src=self.outer_src_ip, dst=self.outer_dst_ip)
-            / TCP(
-                sport=self.outer_src_port,
-                dport=self.outer_dst_port,
-                flags="PA",
-                seq=2000,
-                ack=2000,
-            )
-            / Raw(load=http_data)
-        )
-
-        # Layer 7: Outer IP (already included in scapy packet above)
-        # Layer 8: Outer Ethernet
-        outer_packet = Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / outer_tcp
-
-        return bytes(outer_packet)
-
-    def decapsulate(self, packet_bytes: bytes) -> bytes:
-        """Decapsulate a full EoMacca packet to extract the original payload.
-
-        Args:
-            packet_bytes: Complete EoMacca packet bytes
-
-        Returns:
-            Original payload bytes
+            layers: Explicit per-layer config list, decapsulation order
+                (outer -> inner). Defaults to :func:`default_layer_configs`
+                which reproduces v1 bytes. Use this when you want per-instance
+                addresses for repeated layers.
+            layer_order: Alternative to ``layers`` when default addresses are
+                acceptable. Decap order (outer -> inner). Accepts either a
+                ``list[Layer]`` or a v2 layer-order string like ``"THDtIE"``
+                (see :func:`parse_layer_order`); a ``str`` is parsed into a
+                ``list[Layer]`` and the per-instance addresses are assigned
+                heuristically (outermost TCP/IP get outer addresses, others
+                get inner).
+            outer_src_mac / outer_dst_mac: Fixed outer Ethernet MACs.
+            other address args: Override defaults used by ``layer_order``
+                constructed configs; ignored if ``layers`` is supplied.
 
         Raises:
-            ValueError: If packet is malformed or cannot be decapsulated
+            ValueError: If the configuration is structurally invalid
+                (empty, or outermost configurable layer cannot carry an outer
+                IP envelope).
         """
-        # Layer 8: Parse outer Ethernet
-        outer_packet = Ether(packet_bytes)
+        self.outer_src_mac = outer_src_mac
+        self.outer_dst_mac = outer_dst_mac
 
-        if not outer_packet.haslayer(IP):
-            raise ValueError("No outer IP layer found")
+        if layers is not None and layer_order is not None:
+            raise ValueError("Pass either `layers` or `layer_order`, not both")
 
-        # Layer 7: Outer IP already parsed
-        # Layer 6: Extract outer TCP and get HTTP data
-        if not outer_packet.haslayer(TCP):
-            raise ValueError("No outer TCP layer found")
+        if layers is not None:
+            self.layers = list(layers)
+        else:
+            if layer_order is None:
+                order = list(DEFAULT_LAYER_ORDER)
+            elif isinstance(layer_order, str):
+                order = parse_layer_order(layer_order)
+            else:
+                order = list(layer_order)
+            self.layers = self._configs_from_order(
+                order,
+                inner_src_ip=inner_src_ip,
+                inner_dst_ip=inner_dst_ip,
+                inner_src_port=inner_src_port,
+                inner_dst_port=inner_dst_port,
+                outer_src_ip=outer_src_ip,
+                outer_dst_ip=outer_dst_ip,
+                outer_src_port=outer_src_port,
+                outer_dst_port=outer_dst_port,
+                outer_src_mac=outer_src_mac,
+                outer_dst_mac=outer_dst_mac,
+            )
 
-        tcp_layer = outer_packet[TCP]
-        if not tcp_layer.payload:
-            raise ValueError("Outer TCP has no payload")
+        if not self.layers:
+            raise ValueError("EoMacca stack must have at least one configurable layer")
 
-        # Layer 5: Extract HTTP payload to get DNS
-        http_data = bytes(tcp_layer.payload)
-        dns_msg = self.encapsulator.decapsulate_http_to_dns(http_data)
+        if not _layer_contributes_ip(self.layers[0]):
+            raise ValueError(
+                "The outermost configurable layer must contribute an outer "
+                "IP envelope (Layer.TCP or Layer.IP); got "
+                f"{self.layers[0].kind!r}"
+            )
 
-        # Layer 4: Extract DNS payload to get inner TCP
-        inner_tcp = self.encapsulator.decapsulate_dns_to_tcp(dns_msg)
+        self.wrangler = EomWrangler(
+            inner_src_ip=inner_src_ip,
+            inner_dst_ip=inner_dst_ip,
+            inner_src_port=inner_src_port,
+            inner_dst_port=inner_dst_port,
+            outer_src_ip=outer_src_ip,
+            outer_dst_ip=outer_dst_ip,
+            outer_src_port=outer_src_port,
+            outer_dst_port=outer_dst_port,
+            outer_src_mac=outer_src_mac,
+            outer_dst_mac=outer_dst_mac,
+        )
 
-        # Layer 3: Extract inner TCP payload to get inner IP
-        inner_ip = self.encapsulator.decapsulate_tcp_to_ip(inner_tcp)
+    @staticmethod
+    def _configs_from_order(
+        order: list[Layer],
+        *,
+        inner_src_ip: str,
+        inner_dst_ip: str,
+        inner_src_port: int,
+        inner_dst_port: int,
+        outer_src_ip: str,
+        outer_dst_ip: str,
+        outer_src_port: int,
+        outer_dst_port: int,
+        outer_src_mac: str,
+        outer_dst_mac: str,
+    ) -> list[LayerConfig]:
+        """Build a list of LayerConfigs from a plain layer order.
 
-        # Layer 2: Extract inner IP payload to get inner Ethernet
-        inner_eth_bytes = self.encapsulator.decapsulate_ip_to_ethernet(inner_ip)
+        Heuristic address assignment: the first (outermost) ``Layer.TCP`` uses
+        outer addresses; subsequent TCP layers use inner addresses. The first
+        ``Layer.IP`` uses inner addresses; if it is the outermost layer instead,
+        it gets outer addresses (so it can serve as the outer IP envelope).
+        Ethernet layers use the outer MACs.
+        """
+        configs: list[LayerConfig] = []
+        seen_outer_tcp = False
+        seen_outer_ip = False
+        for i, kind in enumerate(order):
+            is_outermost = i == 0
+            if kind is Layer.TCP:
+                if is_outermost or not seen_outer_tcp:
+                    configs.append(
+                        LayerConfig(
+                            kind=Layer.TCP,
+                            src_ip=outer_src_ip,
+                            dst_ip=outer_dst_ip,
+                            src_port=outer_src_port,
+                            dst_port=outer_dst_port,
+                            tcp_seq=2000,
+                            tcp_ack=2000,
+                        )
+                    )
+                    seen_outer_tcp = True
+                else:
+                    configs.append(
+                        LayerConfig(
+                            kind=Layer.TCP,
+                            src_ip=inner_src_ip,
+                            dst_ip=inner_dst_ip,
+                            src_port=inner_src_port,
+                            dst_port=inner_dst_port,
+                        )
+                    )
+            elif kind is Layer.IP:
+                if is_outermost and not seen_outer_ip:
+                    configs.append(
+                        LayerConfig(
+                            kind=Layer.IP,
+                            src_ip=outer_src_ip,
+                            dst_ip=outer_dst_ip,
+                            proto=6,
+                        )
+                    )
+                    seen_outer_ip = True
+                else:
+                    configs.append(
+                        LayerConfig(
+                            kind=Layer.IP,
+                            src_ip=inner_src_ip,
+                            dst_ip=inner_dst_ip,
+                            proto=6,
+                        )
+                    )
+            elif kind is Layer.ETHERNET:
+                configs.append(
+                    LayerConfig(
+                        kind=Layer.ETHERNET,
+                        src_mac=outer_src_mac,
+                        dst_mac=outer_dst_mac,
+                    )
+                )
+            else:
+                configs.append(LayerConfig(kind=kind))
+        return configs
 
-        # Layer 1: Parse inner Ethernet to get payload
-        inner_eth = Ether(inner_eth_bytes)
-        if not inner_eth.payload:
-            # Empty payload is valid
-            return b""
+    # --- encap / decap public API -----------------------------------------
 
-        payload = bytes(inner_eth.payload)
-        return payload
+    def encapsulate(self, payload: bytes) -> bytes:
+        """Encapsulate ``payload`` through the configured layers + outer Eth.
 
-    def get_overhead_stats(self, payload: bytes) -> dict[str, int | float]:
-        """Calculate overhead statistics for a given payload.
+        Encapsulation order is the reverse of the decapsulation order, so the
+        last element of ``self.layers`` is wrapped first (around the bare
+        payload), and the first element ends up outermost — providing the
+        outer IP envelope that the outer Ethernet then wraps.
+        """
+        result = payload
+        for cfg in reversed(self.layers):
+            result = self.wrangler.encapsulate_layer(cfg, result)
+        return self.wrangler.encapsulate_outer_ethernet(
+            result, src_mac=self.outer_src_mac, dst_mac=self.outer_dst_mac
+        )
+
+    def decapsulate(self, frame: bytes) -> bytes:
+        """Decapsulate an outer Ethernet frame back to the original payload.
 
         Args:
-            payload: The payload to calculate stats for
+            frame: Raw bytes of the outer Ethernet frame (as received on the
+                wire).
 
         Returns:
-            Dictionary containing overhead statistics
+            The original payload bytes.
+
+        Raises:
+            EomError: Typed variant describing the failure point
+                (``BadFrame``, ``Truncated``, ``MalformedLayer``,
+                ``WrongLayerType``, ``NoPayload``).
         """
+        result = self.wrangler.decapsulate_outer_ethernet(frame)
+        for cfg in self.layers:
+            result = self.wrangler.decapsulate_layer(cfg, result)
+        return result
+
+    def get_overhead_stats(self, payload: bytes) -> PayloadStats:
+        """Calculate overhead statistics for a given payload."""
         encapsulated = self.encapsulate(payload)
 
         payload_size = len(payload)
         total_size = len(encapsulated)
         header_size = total_size - payload_size
-        overhead_ratio = (header_size / payload_size) if payload_size > 0 else 0
-        efficiency = (payload_size / total_size * 100) if total_size > 0 else 0
+        overhead_ratio = (header_size / payload_size) if payload_size > 0 else 0.0
+        efficiency = (payload_size / total_size * 100) if total_size > 0 else 0.0
 
-        return {
-            "payload_size": payload_size,
-            "total_size": total_size,
-            "header_size": header_size,
-            "overhead_ratio": overhead_ratio,
-            "efficiency_percent": efficiency,
-        }
+        return PayloadStats(
+            payload_size=payload_size,
+            total_size=total_size,
+            header_size=header_size,
+            overhead_ratio=overhead_ratio,
+            efficiency_percent=efficiency,
+        )
+
+
+def _layer_contributes_ip(cfg: LayerConfig) -> bool:
+    """Whether a configurable layer contributes an outer IP envelope when applied."""
+    return cfg.kind in (Layer.TCP, Layer.IP)

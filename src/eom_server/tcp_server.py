@@ -12,6 +12,8 @@ import threading
 from typing import Literal
 
 from ethernet_over_macca import get_logger
+from ethernet_over_macca.cli import parse_server_args
+from ethernet_over_macca.encapsulation import Layer
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 from .handlers import RequestHandler
 
@@ -56,6 +58,7 @@ class TCPServer:
         host: str = "127.0.0.1",
         port: int = 9999,
         mode: Literal["echo", "chat", "file", "ping"] = "echo",
+        layer_order: str | list[Layer] | None = None,
     ) -> None:
         """Initialize TCP server.
 
@@ -63,13 +66,20 @@ class TCPServer:
             host: Host to bind to
             port: Port to listen on
             mode: Server mode (echo, chat, file, or ping)
+            layer_order: v2 configurable layer ordering, decap order (outer ->
+                inner). Accepts a v2 layer-order string like ``"THDtIE"``
+                (see :func:`parse_layer_order`) or a ``list[Layer]``. ``None``
+                uses the v1-compatible default. Must match the client's
+                ordering or decapsulation fails cleanly with ``EomError``.
         """
         self.host = host
         self.port = port
         self.mode = mode
-        self.stack = EoMaccaStack()
+        self.stack = EoMaccaStack(layer_order=layer_order)
         self.handler = RequestHandler()
         self.running = False
+        self.ready = threading.Event()
+        self.startup_error: BaseException | None = None
 
     def handle_client(
         self, client_socket: socket.socket, address: tuple[str, int]
@@ -143,9 +153,18 @@ class TCPServer:
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind((self.host, self.port))
-            self.port = server_socket.getsockname()[1]
-            server_socket.listen(5)
+            try:
+                server_socket.bind((self.host, self.port))
+                self.port = server_socket.getsockname()[1]
+                server_socket.listen(5)
+            except BaseException as e:
+                # Unblock any waiter on .ready() and surface the real
+                # bind/listen failure immediately rather than via a 5s
+                # timeout followed by an opaque ConnectionRefusedError.
+                self.startup_error = e
+                self.ready.set()
+                raise
+            self.ready.set()
 
             CONSOLE.print("\n[bold cyan]EoMacca TCP Server[/bold cyan]")
             CONSOLE.print(f"Mode: [yellow]{self.mode.upper()}[/yellow]")
@@ -176,10 +195,9 @@ class TCPServer:
 
 def main() -> None:
     """Run the TCP server."""
-
     UI()
-    mode = sys.argv[1] if len(sys.argv) > 1 else "echo"
-    server = TCPServer(mode=mode)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
+    mode, layer_order = parse_server_args()
+    server = TCPServer(mode=mode, layer_order=layer_order)
     server.start()
 
 
