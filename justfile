@@ -14,7 +14,7 @@ test:
 
 # Run tests with coverage report
 test-coverage:
-    uv run coverage run --source=src -m pytest
+    uv run coverage run -m pytest
     uv run coveralls
 
 # Run tests and check coverage threshold
