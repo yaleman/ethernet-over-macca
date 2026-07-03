@@ -1,6 +1,7 @@
 """Interactive chat demo for EoMacca protocol."""
 
 from ethernet_over_macca import get_logger
+from demo import parse_demo_args
 from eom_client.tcp_client import TCPClient
 from eom_client.ui import UI
 
@@ -13,14 +14,21 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Chat Demo")
 
+    layer_order = parse_demo_args("demo.chat_demo")
+
     CONSOLE.print("[dim]Make sure the server is running:[/dim]")
-    CONSOLE.print("[dim]  just server-tcp chat[/dim]\n")
+    if layer_order is None:
+        CONSOLE.print("[dim]  just server-tcp chat[/dim]\n")
+    else:
+        CONSOLE.print(
+            f"[dim]  just server-tcp chat --layers {layer_order}[/dim]\n"
+        )
 
     CONSOLE.print(
         "[yellow]Type messages and press Enter. Type 'quit' to exit.[/yellow]\n"
     )
 
-    client = TCPClient()
+    client = TCPClient(layer_order=layer_order)
 
     while True:
         try:

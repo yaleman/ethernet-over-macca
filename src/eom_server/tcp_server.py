@@ -2,6 +2,7 @@
 
 from eom_client import UI
 
+import argparse
 import sys
 
 import atexit
@@ -9,9 +10,10 @@ import signal
 import socket
 import struct
 import threading
-from typing import Literal
+from typing import Literal, Sequence, cast
 
 from ethernet_over_macca import get_logger
+from ethernet_over_macca.encapsulation import Layer
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 from .handlers import RequestHandler
 
@@ -56,6 +58,7 @@ class TCPServer:
         host: str = "127.0.0.1",
         port: int = 9999,
         mode: Literal["echo", "chat", "file", "ping"] = "echo",
+        layer_order: str | list[Layer] | None = None,
     ) -> None:
         """Initialize TCP server.
 
@@ -63,11 +66,16 @@ class TCPServer:
             host: Host to bind to
             port: Port to listen on
             mode: Server mode (echo, chat, file, or ping)
+            layer_order: v2 configurable layer ordering, decap order (outer ->
+                inner). Accepts a v2 layer-order string like ``"THDtIE"``
+                (see :func:`parse_layer_order`) or a ``list[Layer]``. ``None``
+                uses the v1-compatible default. Must match the client's
+                ordering or decapsulation fails cleanly with ``EomError``.
         """
         self.host = host
         self.port = port
         self.mode = mode
-        self.stack = EoMaccaStack()
+        self.stack = EoMaccaStack(layer_order=layer_order)
         self.handler = RequestHandler()
         self.running = False
 
@@ -174,12 +182,55 @@ class TCPServer:
                 self.running = False
 
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for the TCP server CLI."""
+    parser = argparse.ArgumentParser(
+        prog="eom_server.tcp_server",
+        description="EoMacca TCP server.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "ORDER is a v2 layer-order string, decap order (outer -> inner), "
+            "e.g. 'THDtIE' (outer TCP, HTTP, DNS, inner TCP, inner IP, inner Eth). "
+            "Defaults to the v1-compatible stack."
+        ),
+    )
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        default="echo",
+        choices=["echo", "chat", "file", "ping"],
+        help="server mode (default: echo)",
+    )
+    parser.add_argument(
+        "--layers",
+        metavar="ORDER",
+        default=None,
+        help="v2 layer-order string (default: v1-compatible stack)",
+    )
+    return parser
+
+
+def _parse_args(
+    argv: Sequence[str] | None = None,
+) -> tuple[Literal["echo", "chat", "file", "ping"], str | None]:
+    """Parse argv for the TCP server.
+
+    ``mode`` defaults to ``"echo"``. ``--layers`` takes a v2 layer-order
+    string (see :func:`parse_layer_order`); when omitted the
+    v1-compatible default is used. Argparse handles ``--help`` / bad input.
+    """
+    parser = _build_arg_parser()
+    parsed = parser.parse_args(argv)
+    return cast(
+        Literal["echo", "chat", "file", "ping"], parsed.mode
+    ), parsed.layers
+
+
 def main() -> None:
     """Run the TCP server."""
-
     UI()
-    mode = sys.argv[1] if len(sys.argv) > 1 else "echo"
-    server = TCPServer(mode=mode)  # type: ignore[arg-type]  # ty:ignore[invalid-argument-type]
+    mode, layer_order = _parse_args()
+    server = TCPServer(mode=mode, layer_order=layer_order)
     server.start()
 
 

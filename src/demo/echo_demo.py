@@ -2,6 +2,7 @@
 
 from ethernet_over_macca import get_logger
 
+from demo import parse_demo_args
 from eom_client.tcp_client import TCPClient
 from eom_client.ui import UI
 
@@ -13,10 +14,17 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Echo Demo")
 
-    CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
-    CONSOLE.print("[dim]  just server-tcp echo[/dim]\n")
+    layer_order = parse_demo_args("demo.echo_demo")
 
-    client = TCPClient()
+    CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
+    if layer_order is None:
+        CONSOLE.print("[dim]  just server-tcp echo[/dim]\n")
+    else:
+        CONSOLE.print(
+            f"[dim]  just server-tcp echo --layers {layer_order}[/dim]\n"
+        )
+
+    client = TCPClient(layer_order=layer_order)
 
     # Test messages
     messages = [

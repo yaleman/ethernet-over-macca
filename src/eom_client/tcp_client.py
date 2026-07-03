@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 from ethernet_over_macca import get_logger, MAX_FILENAME_LENGTH
+from ethernet_over_macca.encapsulation import Layer
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 from .ui import UI
 
@@ -45,16 +46,26 @@ def send_packet(sock: socket.socket, data: bytes) -> None:
 class TCPClient:
     """TCP client for sending EoMacca packets."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 9999) -> None:
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 9999,
+        layer_order: str | list[Layer] | None = None,
+    ) -> None:
         """Initialize TCP client.
 
         Args:
             host: Server host
             port: Server port
+            layer_order: v2 configurable layer ordering, decap order (outer ->
+                inner). Accepts a v2 layer-order string like ``"THDtIE"``
+                (see :func:`parse_layer_order`) or a ``list[Layer]``. ``None``
+                uses the v1-compatible default. The server must use the same
+                ordering or decapsulation will fail cleanly with ``EomError``.
         """
         self.host = host
         self.port = port
-        self.stack = EoMaccaStack()
+        self.stack = EoMaccaStack(layer_order=layer_order)
         self.ui = UI()
 
     def send_receive(

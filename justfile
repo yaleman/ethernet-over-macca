@@ -37,29 +37,49 @@ format:
 example:
     uv run python -m src.examples
 
-# Start TCP server in echo mode
-server-tcp mode="echo":
-    uv run python -m eom_server.tcp_server {{mode}}
+# Start TCP server in echo mode (pass layers='THDtIE' to override the default)
+server-tcp mode="echo" layers='':
+    @if [ -n "{{layers}}" ]; then \
+        uv run python -m eom_server.tcp_server {{mode}} --layers {{layers}}; \
+    else \
+        uv run python -m eom_server.tcp_server {{mode}}; \
+    fi
 
 # Start HTTP server
 server-http mode="echo":
     uv run python -m eom_server.http_server {{mode}}
 
-# Run echo demo (requires server running)
-demo-echo:
-    uv run python -m demo.echo_demo
+# Run echo demo (requires server running); pass layers='THDtIE' to override
+demo-echo layers='':
+    @if [ -n "{{layers}}" ]; then \
+        uv run python -m demo.echo_demo --layers {{layers}}; \
+    else \
+        uv run python -m demo.echo_demo; \
+    fi
 
 # Run chat demo (requires server running - 'just server-tcp chat')
-demo-chat:
-    uv run python -m demo.chat_demo
+demo-chat layers='':
+    @if [ -n "{{layers}}" ]; then \
+        uv run python -m demo.chat_demo --layers {{layers}}; \
+    else \
+        uv run python -m demo.chat_demo; \
+    fi
 
 # Run file transfer demo (requires server running)
-demo-file:
-    uv run python -m demo.file_demo
+demo-file layers='':
+    @if [ -n "{{layers}}" ]; then \
+        uv run python -m demo.file_demo --layers {{layers}}; \
+    else \
+        uv run python -m demo.file_demo; \
+    fi
 
 # Run ping/latency demo (requires server running)
-demo-ping:
-    uv run python -m demo.ping_demo
+demo-ping layers='':
+    @if [ -n "{{layers}}" ]; then \
+        uv run python -m demo.ping_demo --layers {{layers}}; \
+    else \
+        uv run python -m demo.ping_demo; \
+    fi
 
 # Generate Brainfuck code from RFC
 generate-brainfuck:

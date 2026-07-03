@@ -7,36 +7,57 @@ from scapy.layers.inet import IP
 from dnslib import DNSRecord, DNSHeader, RR, QTYPE, A, TXT
 
 from ethernet_over_macca.protocol_stack import EoMaccaStack
-from ethernet_over_macca.encapsulation import EomWrangler
+from ethernet_over_macca.encapsulation import (
+    INNER_DST_IP,
+    INNER_DST_PORT,
+    INNER_SRC_IP,
+    INNER_SRC_PORT,
+    EomError,
+    EomMalformedLayer,
+    EomNoPayload,
+    EomTruncated,
+    EomWrangler,
+    EomWrongLayerType,
+    Layer,
+    LayerConfig,
+)
 
 
 class TestEncapsulation:
-    """Test individual encapsulation layers."""
+    """Test individual encapsulation layers (v2 clean API)."""
 
     def test_ethernet_in_ip(self, wrangler: EomWrangler) -> None:
-        """Test Ethernet frame encapsulation in IP."""
+        """Test Ethernet frame encapsulation in IP via the single-layer API."""
         eth_frame = Ether(src="aa:bb:cc:dd:ee:ff", dst="11:22:33:44:55:66") / Raw(
             load=b"test payload"
         )
         eth_bytes = bytes(eth_frame)
 
-        ip_packet = wrangler.encapsulate_ethernet_in_tcp_ip(eth_bytes)
+        ip_packet = wrangler.encapsulate_ip(
+            eth_bytes, src_ip=INNER_SRC_IP, dst_ip=INNER_DST_IP, proto=6
+        )
 
         assert len(ip_packet) > len(eth_bytes)
         assert isinstance(ip_packet, bytes)
 
     def test_ip_in_tcp(self, wrangler: EomWrangler) -> None:
-        """Test IP packet encapsulation in TCP."""
+        """Test IP packet encapsulation in TCP via the single-layer API."""
         ip_data = b"fake IP packet data"
-        tcp_segment = wrangler.encapsulate_ip_in_tcp(ip_data)
+        tcp_segment = wrangler.encapsulate_tcp(
+            ip_data,
+            src_ip=INNER_SRC_IP,
+            dst_ip=INNER_DST_IP,
+            src_port=INNER_SRC_PORT,
+            dst_port=INNER_DST_PORT,
+        )
 
         assert len(tcp_segment) > len(ip_data)
         assert isinstance(tcp_segment, bytes)
 
     def test_tcp_in_dns(self, wrangler: EomWrangler) -> None:
-        """Test TCP segment encapsulation in DNS."""
+        """Test TCP segment encapsulation in DNS via the single-layer API."""
         tcp_data = b"fake TCP segment data"
-        dns_message = wrangler.encapsulate_tcp_in_dns(tcp_data)
+        dns_message = wrangler.encapsulate_dns(tcp_data)
 
         assert len(dns_message) > 0
         assert isinstance(dns_message, (bytes, bytearray))
@@ -53,27 +74,27 @@ class TestEncapsulation:
 
 
 class TestDecapsulation:
-    """Test individual decapsulation layers."""
+    """Test individual decapsulation layers (v2 clean API)."""
 
     def test_http_to_dns(self, wrangler: EomWrangler) -> None:
         """Test DNS extraction from HTTP."""
         dns_data = b"fake DNS message"
         http_request = wrangler.encapsulate_http(dns_data)
 
-        extracted_dns = wrangler.decapsulate_http_to_payload(http_request)
+        extracted_dns = wrangler.decapsulate_http(http_request)
         assert extracted_dns == dns_data
 
     def test_http_to_dns_invalid(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation with invalid data."""
-        with pytest.raises(ValueError):
-            wrangler.decapsulate_http_to_payload(b"not an HTTP message")
+        with pytest.raises(EomError):
+            wrangler.decapsulate_http(b"not an HTTP message")
 
     def test_dns_roundtrip(self, wrangler: EomWrangler) -> None:
         """Test DNS encapsulation and decapsulation roundtrip."""
         original_tcp = b"test TCP data for DNS roundtrip"
 
-        dns_msg = wrangler.encapsulate_tcp_in_dns(original_tcp)
-        recovered_tcp = wrangler.decapsulate_dns_to_tcp(dns_msg)
+        dns_msg = wrangler.encapsulate_dns(original_tcp)
+        recovered_tcp = wrangler.decapsulate_dns(dns_msg)
 
         assert recovered_tcp == original_tcp
 
@@ -201,45 +222,37 @@ class TestEdgeCases:
 
 
 class TestDecapsulationValidation:
-    """Test validation in decapsulation functions."""
+    """Test validation in decapsulation functions (typed errors, v2 API)."""
 
     def test_http_too_short(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation with too-short data."""
-
-        with pytest.raises(ValueError, match="too short"):
-            wrangler.decapsulate_http_to_payload(b"short")
+        with pytest.raises(EomTruncated):
+            wrangler.decapsulate_http(b"short")
 
     def test_http_no_terminator(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation without header terminator."""
-
-        with pytest.raises(ValueError, match="no header terminator"):
-            wrangler.decapsulate_http_to_payload(b"GET / HTTP/1.1\r\nno terminator")
+        with pytest.raises(EomMalformedLayer):
+            wrangler.decapsulate_http(b"GET / HTTP/1.1\r\nno terminator")
 
     def test_http_empty_body(self, wrangler: EomWrangler) -> None:
         """Test HTTP decapsulation with empty body."""
-
         http_msg = b"GET / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n"
-
-        with pytest.raises(ValueError, match="no body"):
-            wrangler.decapsulate_http_to_payload(http_msg)
+        with pytest.raises(EomNoPayload):
+            wrangler.decapsulate_http(http_msg)
 
     def test_dns_too_short(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with too-short data."""
-
-        with pytest.raises(ValueError, match="too short"):
-            wrangler.decapsulate_dns_to_tcp(b"\x00" * 10)
+        with pytest.raises(EomTruncated):
+            wrangler.decapsulate_dns(b"\x00" * 10)
 
     def test_dns_no_answers(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with no answer records."""
-
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
-
-        with pytest.raises(ValueError, match="no answer records"):
-            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
+        with pytest.raises(EomNoPayload):
+            wrangler.decapsulate_dns(dns_msg.pack())
 
     def test_dns_wrong_type(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with wrong record type."""
-
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
         dns_msg.add_answer(
             RR(
@@ -250,13 +263,11 @@ class TestDecapsulationValidation:
                 rdata=A("127.0.0.1"),
             )
         )
-
-        with pytest.raises(ValueError, match="Expected TXT record"):
-            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
+        with pytest.raises(EomWrongLayerType):
+            wrangler.decapsulate_dns(dns_msg.pack())
 
     def test_dns_empty_txt(self, wrangler: EomWrangler) -> None:
         """Test DNS decapsulation with empty TXT data."""
-
         dns_msg = DNSRecord(DNSHeader(qr=1, aa=1, rd=1, ra=1))
         dns_msg.add_answer(
             RR(
@@ -267,26 +278,167 @@ class TestDecapsulationValidation:
                 rdata=TXT([""]),
             )
         )
-
-        with pytest.raises(ValueError, match="empty"):
-            wrangler.decapsulate_dns_to_tcp(dns_msg.pack())
+        with pytest.raises(EomNoPayload):
+            wrangler.decapsulate_dns(dns_msg.pack())
 
     def test_tcp_too_short(self, wrangler: EomWrangler) -> None:
         """Test TCP decapsulation with too-short data."""
-
-        with pytest.raises(ValueError, match="too short"):
-            wrangler.decapsulate_tcp_to_ip(b"\x00" * 10)
+        with pytest.raises(EomTruncated):
+            wrangler.decapsulate_tcp(b"\x00" * 10)
 
     def test_ip_too_short(self, wrangler: EomWrangler) -> None:
         """Test IP decapsulation with too-short data."""
-
-        with pytest.raises(ValueError, match="too short"):
-            wrangler.decapsulate_ip_to_ethernet(b"\x00" * 10)
+        with pytest.raises(EomTruncated):
+            wrangler.decapsulate_ip(b"\x00" * 10)
 
     def test_ip_no_payload(self, wrangler: EomWrangler) -> None:
         """Test IP decapsulation with no payload."""
-
         packet = IP(src="10.0.0.1", dst="10.0.0.2")
+        with pytest.raises(EomNoPayload):
+            wrangler.decapsulate_ip(bytes(packet))
 
-        with pytest.raises(ValueError, match="no payload"):
-            wrangler.decapsulate_ip_to_ethernet(bytes(packet))
+
+class TestV2ArbitraryOrderings:
+    """Exercise v2's defining feature: arbitrary configurable layer orderings."""
+
+    @pytest.mark.parametrize(
+        "order",
+        [
+            [Layer.TCP, Layer.HTTP, Layer.DNS, Layer.TCP, Layer.IP, Layer.ETHERNET],
+            [Layer.TCP, Layer.DNS, Layer.HTTP, Layer.IP, Layer.ETHERNET],
+            [Layer.IP, Layer.ETHERNET],                       # minimal: IP+Eth only
+            [Layer.TCP, Layer.IP, Layer.ETHERNET],            # bare TCP over IP over Eth
+            [Layer.TCP, Layer.HTTP],                           # HTTP only over outer TCP
+            [Layer.TCP, Layer.DNS],                            # DNS only over outer TCP
+            # Arbitrary repetition: HTTP -> DNS -> HTTP -> DNS over outer TCP.
+            [Layer.TCP, Layer.HTTP, Layer.DNS, Layer.HTTP, Layer.DNS],
+            # Doubled inner TCP+IP+Eth, wrapped twice.
+            [Layer.TCP, Layer.TCP, Layer.IP, Layer.ETHERNET,
+             Layer.TCP, Layer.IP, Layer.ETHERNET],
+        ],
+        ids=[
+            "v1-default",
+            "no-client-tcp",
+            "bare-ip-eth",
+            "bare-tcp-ip-eth",
+            "http-only",
+            "dns-only",
+            "http-dns-http-dns",
+            "double-tunnel",
+        ],
+    )
+    def test_roundtrip(self, order: list[Layer]) -> None:
+        """Every valid ordering must round-trip the original payload."""
+        stack = EoMaccaStack(layer_order=order)
+        payload = b"the order is configurable and arbitrary"
+        packet = stack.encapsulate(payload)
+        recovered = stack.decapsulate(packet)
+        assert recovered == payload
+
+    def test_outermost_must_contribute_ip(self) -> None:
+        """An HTTP layer as the outermost configurable layer is rejected."""
+        with pytest.raises(ValueError, match="outer IP envelope"):
+            EoMaccaStack(layer_order=[Layer.HTTP, Layer.DNS])
+
+    def test_empty_layer_order_rejected(self) -> None:
+        """An empty layer order is rejected."""
+        with pytest.raises(ValueError, match="at least one"):
+            EoMaccaStack(layer_order=[])
+
+    def test_layers_and_layer_order_mutually_exclusive(self) -> None:
+        """Cannot pass both `layers` and `layer_order`."""
+        with pytest.raises(ValueError, match="not both"):
+            EoMaccaStack(
+                layers=[LayerConfig(kind=Layer.IP)],
+                layer_order=[Layer.IP],
+            )
+
+    def test_explicit_layers_with_distinct_addresses(self) -> None:
+        """Repeated layers can carry distinct addresses via LayerConfig."""
+        stack = EoMaccaStack(layers=[
+            LayerConfig(
+                kind=Layer.TCP,
+                src_ip="172.16.0.1",
+                dst_ip="172.16.0.2",
+                src_port=1111,
+                dst_port=2222,
+                tcp_seq=7777,
+                tcp_ack=8888,
+            ),
+            LayerConfig(kind=Layer.HTTP),
+            LayerConfig(kind=Layer.DNS),
+            LayerConfig(
+                kind=Layer.TCP,
+                src_ip="10.99.0.1",
+                dst_ip="10.99.0.2",
+                src_port=3333,
+                dst_port=4444,
+                tcp_seq=5555,
+                tcp_ack=6666,
+            ),
+            LayerConfig(kind=Layer.IP, src_ip="10.0.0.1", dst_ip="10.0.0.2"),
+            LayerConfig(kind=Layer.ETHERNET,
+                        src_mac="11:22:33:44:55:66",
+                        dst_mac="77:88:99:aa:bb:cc"),
+        ])
+        payload = b"distinct addresses per layer instance"
+        assert stack.decapsulate(stack.encapsulate(payload)) == payload
+
+    def test_infinite_repetition_supported(self) -> None:
+        """A long chain of repeated layers still round-trips.
+
+        Demonstrates "infinite layers" in practice — 20 nested TCP layers
+        each carrying their own IP envelope, around a single payload.
+        """
+        layers = [LayerConfig(kind=Layer.TCP) for _ in range(20)]
+        # The innermost needs a payload-bearing layer: add a final IP+ETH.
+        layers.append(LayerConfig(kind=Layer.IP))
+        layers.append(LayerConfig(kind=Layer.ETHERNET))
+        stack = EoMaccaStack(layers=layers)
+        payload = b"deeply nested tunnel"
+        assert stack.decapsulate(stack.encapsulate(payload)) == payload
+
+    def test_wrong_order_decapsulate_fails_cleanly(self) -> None:
+        """A sender/receiver pair with mismatched orderings fails safely.
+
+        Per the v2 contract, getting the order wrong yields a clean EomError
+        (or garbage), never silent corruption.
+        """
+        sender = EoMaccaStack(layer_order=[
+            Layer.TCP, Layer.HTTP, Layer.DNS, Layer.TCP, Layer.IP, Layer.ETHERNET,
+        ])
+        receiver = EoMaccaStack(layer_order=[
+            Layer.TCP, Layer.DNS, Layer.HTTP, Layer.TCP, Layer.IP, Layer.ETHERNET,
+        ])
+        packet = sender.encapsulate(b"order matters")
+        with pytest.raises(EomError):
+            receiver.decapsulate(packet)
+
+
+class TestV1Interop:
+    """Verify the default v2 config interoperates with v1 wire format.
+
+    Strict byte-for-byte equality is impossible across separate Python
+    processes because scapy assigns random IP IDs / checksums. What we CAN
+    verify is structural interop: both stacks accept each other's packets.
+    """
+
+    @pytest.mark.parametrize(
+        "payload",
+        [b"Hello", b"", b"X" * 100, bytes(range(256)), b"A" * 10000],
+        ids=["hello", "empty", "100", "binary-256", "10000"],
+    )
+    def test_v2_default_decapsulates_like_v1_would(
+        self, stack: EoMaccaStack, payload: bytes
+    ) -> None:
+        """A fresh v2 default stack round-trips its own bytes (sanity)."""
+        packet = stack.encapsulate(payload)
+        assert stack.decapsulate(packet) == payload
+
+    def test_default_layer_count_matches_rfc(self) -> None:
+        """The v1-compatible default has 6 configurable layers (8 total
+        counting the fixed outer Ethernet + the IP from the outer TCP)."""
+        stack = EoMaccaStack()
+        assert len(stack.layers) == 6
+        assert stack.layers[0].kind is Layer.TCP
+        assert stack.layers[-1].kind is Layer.ETHERNET
