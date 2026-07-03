@@ -25,7 +25,6 @@ from scapy.layers.inet import IP, TCP
 from scapy.layers.l2 import Ether
 from scapy.packet import Raw
 
-
 # ---------------------------------------------------------------------------
 # Default configuration constants
 # ---------------------------------------------------------------------------
@@ -47,7 +46,7 @@ DNS_DOMAIN: Final[str] = "data.eomacca.example.com"
 HTTP_HOST: Final[str] = "eomacca.example.com"
 HTTP_PATH: Final[str] = "/eomacca/v1/tunnel"
 HTTP_CONTENT_TYPE: Final[str] = "application/octet-stream"
-HTTP_USER_AGENT: Final[str] = "EoMacca/1.0 (Unnecessarily Complex Protocol)"
+HTTP_USER_AGENT: Final[str] = "EoMacca/2.0 (Unnecessarily Complex Protocol)"
 
 # Profile-internal sanity thresholds. The non-greedy decap relies on each
 # layer's own length/offset fields, but we still reject obviously truncated

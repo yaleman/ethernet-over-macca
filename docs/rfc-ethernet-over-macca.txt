@@ -242,7 +242,7 @@ Table of Contents
       Host: eomacca.example.com
       Content-Type: application/dns-message
       Content-Length: [length of DNS message]
-      User-Agent: EoMacca/1.0 (Unnecessarily Complex Protocol)
+      User-Agent: EoMacca/2.0 (Unnecessarily Complex Protocol)
       Connection: keep-alive
 
       [DNS message bytes]

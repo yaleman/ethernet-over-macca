@@ -1,6 +1,6 @@
 [project]
 name = "ethernet-over-macca"
-version = "0.1.0"
+version = "0.2.0"
 description = "RFC implementation of Ethernet over IP over TCP over DNS over HTTP over TCP over IP over Ethernet"
 readme = "README.md"
 authors = [{ name = "James Hodgkinson", email = "james@terminaloutcomes.com" }]
@@ -32,20 +32,12 @@ dev = [
 
 [tool.coverage.run]
 source = ["src"]
-omit = [
-    "tests/*",
-    "*/tests/*",
-    "src/eom_client/ui.py",
-]
+omit = ["tests/*", "*/tests/*", "src/eom_client/ui.py"]
 
 [tool.coverage.report]
 # Mirrored from [tool.coverage.run] so coveralls (which re-reads coverage config
 # at upload time) also drops tests/ui from a stale .coverage.
-omit = [
-    "tests/*",
-    "*/tests/*",
-    "src/eom_client/ui.py",
-]
+omit = ["tests/*", "*/tests/*", "src/eom_client/ui.py"]
 exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
