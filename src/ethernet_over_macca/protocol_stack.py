@@ -86,7 +86,7 @@ class EoMaccaStack:
         for layer in reversed(self.stack_order):
             if layer == "e":
                 # Layer 1: Create inner Ethernet frame with payload
-                payload = self.wrangler.encapsulate_payload_frame(payload)
+                payload = self.wrangler.encapsulate_raw_bytes(payload)
             elif layer == "i":
                 # Layer 2: Encapsulate inner Ethernet in inner IP
                 payload = self.wrangler.encapsulate_ethernet_in_tcp_ip(payload)

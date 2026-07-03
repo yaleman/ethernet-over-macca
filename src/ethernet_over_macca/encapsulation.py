@@ -73,15 +73,27 @@ class EomWrangler:
 
         return bytes(ip_packet)
 
-    def encapsulate_payload_frame(self, payload: bytes) -> bytes:
-        inner_eth = Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / Raw(
-            load=payload
+    def encapsulate_raw_bytes(self, payload: bytes) -> bytes:
+        return bytes(
+            Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / Raw(load=payload)
         )
-
-        return bytes(inner_eth)
 
     def encapsulate_bytes_in_ethernet(self, payload: bytes) -> bytes:
         return Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / payload
+
+    def encapsulate_bytes_in_tcp_ip(self, http_request: bytes) -> bytes:
+        """Returns a raw-encoded packet"""
+        return (
+            IP(src=self.outer_src_ip, dst=self.outer_dst_ip)
+            / TCP(
+                sport=self.outer_src_port,
+                dport=self.outer_dst_port,
+                flags="PA",
+                seq=2000,
+                ack=2000,
+            )
+            / Raw(load=http_request)
+        )
 
     def encapsulate_ip_in_tcp(self, ip_packet: bytes) -> bytes:
         """Encapsulate an IP packet as the payload of a TCP segment.
@@ -165,20 +177,6 @@ class EomWrangler:
             f"\r\n"
         ).encode("ascii")
         return http_request + payload_bytes
-
-    def encapsulate_bytes_in_tcp_ip(self, http_request: bytes) -> bytes:
-
-        return (
-            IP(src=self.outer_src_ip, dst=self.outer_dst_ip)
-            / TCP(
-                sport=self.outer_src_port,
-                dport=self.outer_dst_port,
-                flags="PA",
-                seq=2000,
-                ack=2000,
-            )
-            / Raw(load=http_request)
-        )
 
     def decapsulate_http_to_payload(self, http_data: bytes) -> bytes:
         """Extract payload from HTTP request/response.
