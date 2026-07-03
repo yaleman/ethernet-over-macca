@@ -78,7 +78,8 @@ class EomWrangler:
             Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / Raw(load=payload)
         )
 
-    def encapsulate_bytes_in_ethernet(self, payload: bytes) -> bytes:
+    def encapsulate_packet_in_ethernet(self, payload: IP) -> bytes:
+        """takes a scapy packet and encapsulates it in an ethernet frame"""
         return Ether(src=self.outer_src_mac, dst=self.outer_dst_mac) / payload
 
     def encapsulate_bytes_in_tcp_ip(self, http_request: bytes) -> bytes:

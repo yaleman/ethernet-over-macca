@@ -106,7 +106,7 @@ class EoMaccaStack:
             elif layer == "E":
                 # Layer 7: Outer IP (already included in scapy packet above)
                 # Layer 8: Outer Ethernet
-                payload = self.wrangler.encapsulate_bytes_in_ethernet(payload)
+                payload = self.wrangler.encapsulate_packet_in_ethernet(payload)  # ty:ignore[invalid-argument-type]
             else:
                 raise ValueError(f"Unsupported layer '{layer}' in stack_order")
         return bytes(payload)
