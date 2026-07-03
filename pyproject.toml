@@ -39,6 +39,13 @@ omit = [
 ]
 
 [tool.coverage.report]
+# Mirrored from [tool.coverage.run] so coveralls (which re-reads coverage config
+# at upload time) also drops tests/ui from a stale .coverage.
+omit = [
+    "tests/*",
+    "*/tests/*",
+    "src/eom_client/ui.py",
+]
 exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
