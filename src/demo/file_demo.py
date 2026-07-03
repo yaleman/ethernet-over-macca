@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 
-from demo import parse_demo_args
+from ethernet_over_macca.cli import parse_demo_layer_order
 from eom_client.tcp_client import TCPClient
 from eom_client.ui import UI
 
@@ -18,15 +18,13 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca File Transfer Demo")
 
-    layer_order = parse_demo_args("demo.file_demo")
+    layer_order = parse_demo_layer_order("demo.file_demo")
 
     CONSOLE.print("\n[dim]Make sure the server is running:[/dim]")
     if layer_order is None:
         CONSOLE.print("[dim]  just server-tcp file[/dim]\n")
     else:
-        CONSOLE.print(
-            f"[dim]  just server-tcp file --layers {layer_order}[/dim]\n"
-        )
+        CONSOLE.print(f"[dim]  just server-tcp file --layers {layer_order}[/dim]\n")
 
     client = TCPClient(layer_order=layer_order)
 

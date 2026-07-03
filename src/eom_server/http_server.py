@@ -1,8 +1,5 @@
 """HTTP/Flask server for EoMacca protocol."""
 
-import sys
-import time
-
 import threading
 from typing import Literal
 
@@ -10,6 +7,7 @@ from flask import Flask, request, Response
 from werkzeug.serving import make_server
 
 from ethernet_over_macca import get_logger
+from ethernet_over_macca.encapsulation import Layer
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 
 from .handlers import RequestHandler
@@ -20,17 +18,28 @@ CONSOLE = get_logger()
 class HTTPServer:
     """HTTP server implementing EoMacca RFC specification."""
 
-    def __init__(self, mode: Literal["echo", "chat", "file", "ping"] = "echo") -> None:
+    def __init__(
+        self,
+        mode: Literal["echo", "chat", "file", "ping"] = "echo",
+        layer_order: str | list[Layer] | None = None,
+    ) -> None:
         """Initialize HTTP server.
 
         Args:
             mode: Server mode (echo, chat, file, or ping)
+            layer_order: v2 configurable layer ordering, decap order (outer ->
+                inner). Accepts a v2 layer-order string like ``"THDtIE"``
+                (see :func:`parse_layer_order`) or a ``list[Layer]``. ``None``
+                uses the v1-compatible default. Must match the client's
+                ordering or decapsulation fails cleanly with ``EomError``.
         """
         self.mode = mode
         self.port = 0
-        self.stack = EoMaccaStack()
+        self.stack = EoMaccaStack(layer_order=layer_order)
         self.handler = RequestHandler()
         self.app = Flask(__name__)
+        self.ready = threading.Event()
+        self.startup_error: BaseException | None = None
 
         self.app.route("/eomacca/v1/tunnel", methods=["POST"])(self.tunnel)
         self.app.route("/stats", methods=["GET"])(self.stats)
@@ -119,29 +128,35 @@ class HTTPServer:
     ) -> threading.Thread:
         """Start the HTTP server in a background thread with OS-assigned port.
 
-        Returns the thread. The assigned port is available as self.port after
-        the server starts listening.
+        Returns the thread. The assigned port is available as ``self.port``
+        after the server starts listening. Blocks until the server is ready
+        or the startup fails (via ``startup_error``) or ``max_startup_secs``
+        elapses (in which case ``RuntimeError`` is raised).
         """
         self._server_thread = threading.Thread(
             target=self._run_server, args=(host, port), daemon=True
         )
         self._server_thread.start()
-        time_to_throw_error = time.time() + max_startup_secs
-        while True:
-            if self.port != 0:
-                break
-            time.sleep(0.1)
-            if time.time() > time_to_throw_error:
-                raise RuntimeError(
-                    f"Server failed to start in {max_startup_secs}s and assign a port!"
-                )
+        if not self.ready.wait(timeout=max_startup_secs):
+            raise RuntimeError(
+                f"HTTPServer failed to start in {max_startup_secs}s and assign a port!"
+            )
+        if self.startup_error:
+            raise self.startup_error  # type: ignore[misc]
         return self._server_thread
 
     def _run_server(self, host: str, port: int) -> None:
         """Run the server and capture the assigned port."""
-
-        self._werkzeug_server = make_server(host, port, self.app)
-        self.port = self._werkzeug_server.socket.getsockname()[1]
+        try:
+            self._werkzeug_server = make_server(host, port, self.app)
+            self.port = self._werkzeug_server.socket.getsockname()[1]
+        except BaseException as e:
+            # Unblock any waiter on .ready() and surface the real
+            # make_server failure immediately rather than via a timeout.
+            self.startup_error = e
+            self.ready.set()
+            raise
+        self.ready.set()
         self._werkzeug_server.serve_forever()
 
     def stop(self) -> None:
@@ -152,12 +167,10 @@ class HTTPServer:
 
 if __name__ == "__main__":
     """Run the HTTP server."""
+    from ethernet_over_macca.cli import parse_server_args
 
-    mode: Literal["echo", "chat", "file", "ping"] = "echo"
-    if len(sys.argv) > 1:
-        mode = sys.argv[1]  # type: ignore[assignment]  # ty:ignore[invalid-assignment]
-
-    server = HTTPServer(mode=mode)
+    mode, layer_order = parse_server_args()
+    server = HTTPServer(mode=mode, layer_order=layer_order)
     try:
         server.run()
     except KeyboardInterrupt:

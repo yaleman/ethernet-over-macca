@@ -1,6 +1,5 @@
 """Shared test fixtures for EoMacca tests."""
 
-import socket
 import threading
 import time
 from pathlib import Path
@@ -59,23 +58,17 @@ def tcp_server(request: pytest.FixtureRequest) -> Generator[TCPServer, None, Non
     server_thread = threading.Thread(target=server.start, daemon=True)
     server_thread.start()
 
-    # Wait for server to be ready by polling for the assigned port
-    max_retries = 50
-    for _ in range(max_retries):
-        if server.port != 0:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.5)
-                    s.connect(("127.0.0.1", server.port))
-                break
-            except (ConnectionRefusedError, socket.timeout):
-                pass
-        time.sleep(0.1)
+    # Wait for the server to bind its port, or capture bind/listen failure.
+    if not server.ready.wait(timeout=5.0):
+        server.running = False
+        raise RuntimeError(f"TCPServer (mode={mode!r}) failed to bind/start within 5s")
+    if server.startup_error:
+        raise server.startup_error  # type: ignore[misc]
 
     yield server
 
     server.running = False
-    time.sleep(0.1)
+    time.sleep(0.1)  # port-release pad
 
 
 @pytest.fixture(scope="session")

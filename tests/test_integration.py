@@ -75,7 +75,9 @@ def test_multiple_clients() -> None:
 
     server_thread = threading.Thread(target=server.start, daemon=True)
     server_thread.start()
-    time.sleep(0.5)
+    assert server.ready.wait(timeout=5.0), "TCPServer failed to bind/start"
+    if server.startup_error:
+        raise server.startup_error  # type: ignore[misc]
 
     clients = [TCPClient(host="127.0.0.1", port=port) for _ in range(3)]
 
@@ -100,7 +102,7 @@ def test_multiple_clients() -> None:
     assert "Message 2" in results
 
     server.running = False
-    time.sleep(0.1)
+    time.sleep(0.1)  # port-release pad
 
 
 def test_large_payload() -> None:
@@ -110,7 +112,9 @@ def test_large_payload() -> None:
 
     server_thread = threading.Thread(target=server.start, daemon=True)
     server_thread.start()
-    time.sleep(0.5)
+    assert server.ready.wait(timeout=5.0), "TCPServer failed to bind/start"
+    if server.startup_error:
+        raise server.startup_error  # type: ignore[misc]
 
     client = TCPClient(host="127.0.0.1", port=port)
 
@@ -120,7 +124,7 @@ def test_large_payload() -> None:
     assert response == large_message
 
     server.running = False
-    time.sleep(0.1)
+    time.sleep(0.1)  # port-release pad
 
 
 def test_binary_payload(stack: EoMaccaStack) -> None:
@@ -130,7 +134,9 @@ def test_binary_payload(stack: EoMaccaStack) -> None:
 
     server_thread = threading.Thread(target=server.start, daemon=True)
     server_thread.start()
-    time.sleep(0.5)
+    assert server.ready.wait(timeout=5.0), "TCPServer failed to bind/start"
+    if server.startup_error:
+        raise server.startup_error  # type: ignore[misc]
 
     binary_data = bytes(range(256))
 
@@ -145,7 +151,7 @@ def test_binary_payload(stack: EoMaccaStack) -> None:
     assert response_data == binary_data
 
     server.running = False
-    time.sleep(0.1)
+    time.sleep(0.1)  # port-release pad
 
 
 def test_connection_error_handling() -> None:
@@ -261,7 +267,9 @@ class TestMalformedPackets:
 
         server_thread = threading.Thread(target=server.start, daemon=True)
         server_thread.start()
-        time.sleep(0.5)
+        assert server.ready.wait(timeout=5.0), "TCPServer failed to bind/start"
+        if server.startup_error:
+            raise server.startup_error  # type: ignore[misc]
 
         results = []
 
@@ -295,7 +303,7 @@ class TestMalformedPackets:
         assert len(results) == len(bad_packets)
 
         server.running = False
-        time.sleep(0.1)
+        time.sleep(0.1)  # port-release pad
 
 
 # ---------------------------------------------------------------------------
@@ -337,37 +345,27 @@ def _stacked_server(
 ) -> Generator[TCPServer, None, None]:
     """Start a ``TCPServer`` with the given mode and v2 layer ordering.
 
-    Polls until the server has bound to its OS-assigned port so the client
-    can connect immediately.
+    Waits for the server to bind its OS-assigned port via the ``ready``
+    Event. Fails fast with the actual bind/listen exception (within 5s)
+    instead of polling with sleeps.
     """
-    server = TCPServer(host="127.0.0.1", port=0, mode=mode,
-                       layer_order=layer_order)  # type: ignore[arg-type]
+    server = TCPServer(host="127.0.0.1", port=0, mode=mode, layer_order=layer_order)  # type: ignore[arg-type]
 
     thread = threading.Thread(target=server.start, daemon=True)
     thread.start()
 
-    # Wait for the OS to assign a port and the socket to be accepting.
-    for _ in range(50):
-        if server.port != 0:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.5)
-                    s.connect(("127.0.0.1", server.port))
-                break
-            except (ConnectionRefusedError, socket.timeout):
-                pass
-        time.sleep(0.05)
-    else:  # pragma: no cover - only triggered by environmental failure
-        server.running = False
+    if not server.ready.wait(timeout=5.0):  # pragma: no cover
         raise RuntimeError(
-            f"TCPServer ({mode=}, layers={layer_order!r}) failed to start"
+            f"TCPServer ({mode=}, layers={layer_order!r}) failed to bind/start"
         )
+    if server.startup_error:
+        raise server.startup_error  # type: ignore[misc]
 
     try:
         yield server
     finally:
         server.running = False
-        time.sleep(0.2)
+        time.sleep(0.1)  # port-release pad for the next iteration
 
 
 def test_all_server_modes_with_random_layering(
@@ -387,18 +385,20 @@ def test_all_server_modes_with_random_layering(
     assert parsed[0] in (Layer.TCP, Layer.IP), (
         f"random layer string {random_layer_string!r} must start with 'T' or 'I'"
     )
-    assert len(parsed) >= 3, (
-        f"random layer string {random_layer_string!r} too short"
-    )
+    assert len(parsed) >= 3, f"random layer string {random_layer_string!r} too short"
 
     modes: tuple[Literal["echo", "chat", "file", "ping"], ...] = (
-        "echo", "chat", "file", "ping",
+        "echo",
+        "chat",
+        "file",
+        "ping",
     )
 
     for mode in modes:
         with _stacked_server(mode, random_layer_string) as server:
-            client = TCPClient(host="127.0.0.1", port=server.port,
-                               layer_order=random_layer_string)
+            client = TCPClient(
+                host="127.0.0.1", port=server.port, layer_order=random_layer_string
+            )
 
             if mode == "echo":
                 msg = f"echo via random stack {random_layer_string}"
@@ -422,8 +422,7 @@ def test_all_server_modes_with_random_layering(
                 try:
                     response = client.send_file(path)
                     assert "received" in response.lower(), (
-                        f"file handler failed through layers "
-                        f"{random_layer_string!r}"
+                        f"file handler failed through layers {random_layer_string!r}"
                     )
                     assert path.name in response, (
                         f"filename missing from file-mode response through "

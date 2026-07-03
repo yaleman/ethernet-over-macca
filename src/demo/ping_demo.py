@@ -1,7 +1,7 @@
 """Ping/latency demo for EoMacca protocol."""
 
 from ethernet_over_macca import get_logger
-from demo import parse_demo_args
+from ethernet_over_macca.cli import parse_demo_layer_order
 from eom_client.tcp_client import TCPClient
 from eom_client.ui import UI
 
@@ -13,7 +13,7 @@ def main() -> None:
     ui = UI()
     ui.print_header("EoMacca Ping Demo")
 
-    layer_order = parse_demo_args("demo.ping_demo")
+    layer_order = parse_demo_layer_order("demo.ping_demo")
 
     if layer_order is None:
         CONSOLE.print(

@@ -39,12 +39,15 @@ class TestHTTPClientErrorHandling:
 
         client.close()
 
-    def test_http_client_normal_response_still_works(self, stack: EoMaccaStack) -> None:
-        """Verify normal 200 responses still work correctly."""
-        client = HTTPClient(base_url="http://127.0.0.1:8080")
+    @pytest.mark.parametrize("layer_order", [None, "THDtIE"])
+    def test_http_client_normal_response_still_works(
+        self, stack: EoMaccaStack, layer_order: str | None
+    ) -> None:
+        """Verify normal 200 responses still work, with and without custom layers."""
+        client = HTTPClient(base_url="http://127.0.0.1:8080", layer_order=layer_order)
 
         payload = b"Normal response"
-        response_packet = stack.encapsulate(payload)
+        response_packet = client.stack.encapsulate(payload)
 
         mock_response = MagicMock()
         mock_response.status_code = 200

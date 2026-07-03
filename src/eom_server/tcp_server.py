@@ -2,7 +2,6 @@
 
 from eom_client import UI
 
-import argparse
 import sys
 
 import atexit
@@ -10,9 +9,10 @@ import signal
 import socket
 import struct
 import threading
-from typing import Literal, Sequence, cast
+from typing import Literal
 
 from ethernet_over_macca import get_logger
+from ethernet_over_macca.cli import parse_server_args
 from ethernet_over_macca.encapsulation import Layer
 from ethernet_over_macca.protocol_stack import EoMaccaStack
 from .handlers import RequestHandler
@@ -78,6 +78,8 @@ class TCPServer:
         self.stack = EoMaccaStack(layer_order=layer_order)
         self.handler = RequestHandler()
         self.running = False
+        self.ready = threading.Event()
+        self.startup_error: BaseException | None = None
 
     def handle_client(
         self, client_socket: socket.socket, address: tuple[str, int]
@@ -151,9 +153,18 @@ class TCPServer:
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
             server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            server_socket.bind((self.host, self.port))
-            self.port = server_socket.getsockname()[1]
-            server_socket.listen(5)
+            try:
+                server_socket.bind((self.host, self.port))
+                self.port = server_socket.getsockname()[1]
+                server_socket.listen(5)
+            except BaseException as e:
+                # Unblock any waiter on .ready() and surface the real
+                # bind/listen failure immediately rather than via a 5s
+                # timeout followed by an opaque ConnectionRefusedError.
+                self.startup_error = e
+                self.ready.set()
+                raise
+            self.ready.set()
 
             CONSOLE.print("\n[bold cyan]EoMacca TCP Server[/bold cyan]")
             CONSOLE.print(f"Mode: [yellow]{self.mode.upper()}[/yellow]")
@@ -182,54 +193,10 @@ class TCPServer:
                 self.running = False
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
-    """Build the argparse parser for the TCP server CLI."""
-    parser = argparse.ArgumentParser(
-        prog="eom_server.tcp_server",
-        description="EoMacca TCP server.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "ORDER is a v2 layer-order string, decap order (outer -> inner), "
-            "e.g. 'THDtIE' (outer TCP, HTTP, DNS, inner TCP, inner IP, inner Eth). "
-            "Defaults to the v1-compatible stack."
-        ),
-    )
-    parser.add_argument(
-        "mode",
-        nargs="?",
-        default="echo",
-        choices=["echo", "chat", "file", "ping"],
-        help="server mode (default: echo)",
-    )
-    parser.add_argument(
-        "--layers",
-        metavar="ORDER",
-        default=None,
-        help="v2 layer-order string (default: v1-compatible stack)",
-    )
-    return parser
-
-
-def _parse_args(
-    argv: Sequence[str] | None = None,
-) -> tuple[Literal["echo", "chat", "file", "ping"], str | None]:
-    """Parse argv for the TCP server.
-
-    ``mode`` defaults to ``"echo"``. ``--layers`` takes a v2 layer-order
-    string (see :func:`parse_layer_order`); when omitted the
-    v1-compatible default is used. Argparse handles ``--help`` / bad input.
-    """
-    parser = _build_arg_parser()
-    parsed = parser.parse_args(argv)
-    return cast(
-        Literal["echo", "chat", "file", "ping"], parsed.mode
-    ), parsed.layers
-
-
 def main() -> None:
     """Run the TCP server."""
     UI()
-    mode, layer_order = _parse_args()
+    mode, layer_order = parse_server_args()
     server = TCPServer(mode=mode, layer_order=layer_order)
     server.start()
 

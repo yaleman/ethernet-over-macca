@@ -306,15 +306,22 @@ class TestV2ArbitraryOrderings:
         [
             [Layer.TCP, Layer.HTTP, Layer.DNS, Layer.TCP, Layer.IP, Layer.ETHERNET],
             [Layer.TCP, Layer.DNS, Layer.HTTP, Layer.IP, Layer.ETHERNET],
-            [Layer.IP, Layer.ETHERNET],                       # minimal: IP+Eth only
-            [Layer.TCP, Layer.IP, Layer.ETHERNET],            # bare TCP over IP over Eth
-            [Layer.TCP, Layer.HTTP],                           # HTTP only over outer TCP
-            [Layer.TCP, Layer.DNS],                            # DNS only over outer TCP
+            [Layer.IP, Layer.ETHERNET],  # minimal: IP+Eth only
+            [Layer.TCP, Layer.IP, Layer.ETHERNET],  # bare TCP over IP over Eth
+            [Layer.TCP, Layer.HTTP],  # HTTP only over outer TCP
+            [Layer.TCP, Layer.DNS],  # DNS only over outer TCP
             # Arbitrary repetition: HTTP -> DNS -> HTTP -> DNS over outer TCP.
             [Layer.TCP, Layer.HTTP, Layer.DNS, Layer.HTTP, Layer.DNS],
             # Doubled inner TCP+IP+Eth, wrapped twice.
-            [Layer.TCP, Layer.TCP, Layer.IP, Layer.ETHERNET,
-             Layer.TCP, Layer.IP, Layer.ETHERNET],
+            [
+                Layer.TCP,
+                Layer.TCP,
+                Layer.IP,
+                Layer.ETHERNET,
+                Layer.TCP,
+                Layer.IP,
+                Layer.ETHERNET,
+            ],
         ],
         ids=[
             "v1-default",
@@ -355,32 +362,36 @@ class TestV2ArbitraryOrderings:
 
     def test_explicit_layers_with_distinct_addresses(self) -> None:
         """Repeated layers can carry distinct addresses via LayerConfig."""
-        stack = EoMaccaStack(layers=[
-            LayerConfig(
-                kind=Layer.TCP,
-                src_ip="172.16.0.1",
-                dst_ip="172.16.0.2",
-                src_port=1111,
-                dst_port=2222,
-                tcp_seq=7777,
-                tcp_ack=8888,
-            ),
-            LayerConfig(kind=Layer.HTTP),
-            LayerConfig(kind=Layer.DNS),
-            LayerConfig(
-                kind=Layer.TCP,
-                src_ip="10.99.0.1",
-                dst_ip="10.99.0.2",
-                src_port=3333,
-                dst_port=4444,
-                tcp_seq=5555,
-                tcp_ack=6666,
-            ),
-            LayerConfig(kind=Layer.IP, src_ip="10.0.0.1", dst_ip="10.0.0.2"),
-            LayerConfig(kind=Layer.ETHERNET,
-                        src_mac="11:22:33:44:55:66",
-                        dst_mac="77:88:99:aa:bb:cc"),
-        ])
+        stack = EoMaccaStack(
+            layers=[
+                LayerConfig(
+                    kind=Layer.TCP,
+                    src_ip="172.16.0.1",
+                    dst_ip="172.16.0.2",
+                    src_port=1111,
+                    dst_port=2222,
+                    tcp_seq=7777,
+                    tcp_ack=8888,
+                ),
+                LayerConfig(kind=Layer.HTTP),
+                LayerConfig(kind=Layer.DNS),
+                LayerConfig(
+                    kind=Layer.TCP,
+                    src_ip="10.99.0.1",
+                    dst_ip="10.99.0.2",
+                    src_port=3333,
+                    dst_port=4444,
+                    tcp_seq=5555,
+                    tcp_ack=6666,
+                ),
+                LayerConfig(kind=Layer.IP, src_ip="10.0.0.1", dst_ip="10.0.0.2"),
+                LayerConfig(
+                    kind=Layer.ETHERNET,
+                    src_mac="11:22:33:44:55:66",
+                    dst_mac="77:88:99:aa:bb:cc",
+                ),
+            ]
+        )
         payload = b"distinct addresses per layer instance"
         assert stack.decapsulate(stack.encapsulate(payload)) == payload
 
@@ -404,15 +415,14 @@ class TestV2ArbitraryOrderings:
         Per the v2 contract, getting the order wrong yields a clean EomError
         (or garbage), never silent corruption.
         """
-        sender = EoMaccaStack(layer_order=[
-            Layer.TCP, Layer.HTTP, Layer.DNS, Layer.TCP, Layer.IP, Layer.ETHERNET,
-        ])
-        receiver = EoMaccaStack(layer_order=[
-            Layer.TCP, Layer.DNS, Layer.HTTP, Layer.TCP, Layer.IP, Layer.ETHERNET,
-        ])
+        sender_layers = "THDTIE"
+        receiver_layers = "TDHTIE"  # swap the first two layers
+        sender = EoMaccaStack(layer_order=sender_layers)
+        receiver = EoMaccaStack(layer_order=receiver_layers)
         packet = sender.encapsulate(b"order matters")
         with pytest.raises(EomError):
             receiver.decapsulate(packet)
+        assert sender_layers != receiver_layers
 
 
 class TestV1Interop:

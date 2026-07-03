@@ -122,8 +122,9 @@ _LAYER_BY_CHAR: Final[dict[str, Layer]] = {m.value: m for m in Layer}
 def parse_layer_order(order: str) -> list[Layer]:
     """Parse a layer-order string into a list of :class:`Layer` members.
 
-    Each character maps to one layer (see :class:`Layer`). Whitespace is
-    ignored so the string can be formatted for readability. Unknown
+    Each character maps to one layer (see :class:`Layer`). Lookup is
+    case-insensitive so ``"THDtIE"`` and ``"thdtie"`` both parse. Whitespace
+    is ignored so the string can be formatted for readability. Unknown
     characters raise ``ValueError`` naming the offending character.
 
     Example:
@@ -135,7 +136,7 @@ def parse_layer_order(order: str) -> list[Layer]:
     for ch in order:
         if ch.isspace():
             continue
-        layer = _LAYER_BY_CHAR.get(ch)
+        layer = _LAYER_BY_CHAR.get(ch.upper())
         if layer is None:
             raise ValueError(
                 f"Unknown layer character {ch!r} in layer-order string; "
