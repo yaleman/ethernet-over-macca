@@ -23,7 +23,7 @@ just demo-echo
 
 ```text
 ├── docs/
-│   ├── rfc-ethernet-over-macca-v1.txt  # Full v1 RFC specification (RFC 9999)
+│   ├── rfc-ethernet-over-macca-v1.0.txt  # Full v1 RFC specification (RFC 9999)
 │   └── rfc-generator.bf              # Brainfuck code that outputs the RFC
 ├── src/
 │   ├── ethernet_over_macca/
@@ -192,7 +192,7 @@ just stats              # Show project statistics
 | `src/eom_client/http_client.py` | HTTP client for the tunnel endpoint |
 | `src/eom_client/ui.py` | Rich terminal UI, colored output, statistics display |
 | `src/demo/*_demo.py` | Interactive demonstrations of protocol functionality |
-| `docs/rfc-ethernet-over-macca-v1.txt` | Complete v1 RFC specification document |
+| `docs/rfc-ethernet-over-macca-v1.0.txt` | Complete v1 RFC specification document |
 | `docs/rfc-generator.bf` | Brainfuck code that outputs the RFC (about 276K) |
 | `brainfuck_rfc.pdf` | PDF containing the Brainfuck code |
 

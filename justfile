@@ -119,7 +119,7 @@ install:
 stats:
     @echo "Project Statistics:"
     @echo "=================="
-    @ls -lh docs/rfc-ethernet-over-macca-v1.txt | awk '{print "RFC v1 size:     " $$5}'
+    @ls -lh docs/rfc-ethernet-over-macca-v1.0.txt | awk '{print "RFC v1 size:     " $$5}'
     @if [ -f docs/rfc-generator.bf ]; then \
         ls -lh docs/rfc-generator.bf | awk '{print "BF code size: " $$5}'; \
     fi
