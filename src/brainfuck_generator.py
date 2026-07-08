@@ -110,7 +110,7 @@ def generate_rfc_brainfuck(rfc_path: Path, output_path: Path) -> None:
 def main() -> None:
     """Main entry point."""
     project_root = Path(__file__).parent.parent
-    rfc_path = project_root / "docs" / "rfc-ethernet-over-macca.txt"
+    rfc_path = project_root / "docs" / "rfc-ethernet-over-macca-v1.txt"
     output_path = project_root / "docs" / "rfc-generator.bf"
 
     generate_rfc_brainfuck(rfc_path, output_path)

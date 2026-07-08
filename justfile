@@ -99,15 +99,7 @@ build: generate-brainfuck generate-pdf
 
 # Run a Brainfuck interpreter on the generated code (requires bf package)
 run-brainfuck:
-    @echo "Running Brainfuck interpreter (this may take a while)..."
-    @if command -v bf >/dev/null 2>&1; then \
-        bf docs/rfc-generator.bf | head -100; \
-        echo "..."; \
-        echo "(output truncated, full RFC is ~20KB)"; \
-    else \
-        echo "Error: 'bf' command not found. Install with: pip install bf"; \
-        exit 1; \
-    fi
+    ./run-brainfuck.sh
 
 # Clean generated files
 clean:
@@ -127,7 +119,7 @@ install:
 stats:
     @echo "Project Statistics:"
     @echo "=================="
-    @ls -lh docs/rfc-ethernet-over-macca.txt | awk '{print "RFC size:     " $$5}'
+    @ls -lh docs/rfc-ethernet-over-macca-v1.txt | awk '{print "RFC v1 size:     " $$5}'
     @if [ -f docs/rfc-generator.bf ]; then \
         ls -lh docs/rfc-generator.bf | awk '{print "BF code size: " $$5}'; \
     fi
