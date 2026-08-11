@@ -1,5 +1,9 @@
 """Generate a PDF containing the Brainfuck code."""
 
+from typing import Literal
+
+import click
+
 from pathlib import Path
 
 from reportlab.lib.pagesizes import letter
@@ -115,11 +119,33 @@ def generate_brainfuck_pdf(bf_path: Path, output_path: Path) -> None:
     print(f"  Size: {output_path.stat().st_size:,} bytes")
 
 
-def main() -> None:
+VALID_VERSIONS = ("v1.0", "v2.0")
+
+
+def validate_version(
+    ctx: click.Context, param: click.Parameter, value
+) -> Literal["v1.0", "v2.0"]:
+    """Validate the version argument."""
+    if value not in VALID_VERSIONS:
+        raise click.BadParameter(
+            f"Invalid version '{value}'. Must be one of {', '.join(VALID_VERSIONS)}."
+        )
+    return value
+
+
+@click.command()
+@click.option(
+    "--version",
+    callback=validate_version,
+    help="Version of the RFC",
+    default="v1.0",
+    show_choices=True,
+)
+def main(version: Literal["v1.0", "v2.0"]) -> None:
     """Main entry point."""
     project_root = Path(__file__).parent.parent
-    bf_path = project_root / "docs" / "rfc-generator.bf"
-    output_path = project_root / "brainfuck_rfc.pdf"
+    bf_path = project_root / "docs" / f"rfc-generator-{version}.bf"
+    output_path = project_root / f"brainfuck_rfc_{version}.pdf"
 
     if not bf_path.exists():
         print(f"Error: Brainfuck code not found at {bf_path}")

@@ -12,6 +12,7 @@ dependencies = [
     "flask>=3.0.0",
     "rich>=13.0.0",
     "requests>=2.31.0",
+    "click>=8.4.2",
 ]
 
 [build-system]

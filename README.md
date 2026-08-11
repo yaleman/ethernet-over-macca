@@ -24,35 +24,36 @@ just demo-echo
 ```text
 ├── docs/
 │   ├── rfc-ethernet-over-macca-v1.0.txt  # Full v1 RFC specification (RFC 9999)
-│   └── rfc-generator.bf              # Brainfuck code that outputs the RFC
-├── src/
-│   ├── ethernet_over_macca/
-│   │   ├── protocol_stack.py         # Core EoMacca implementation
-│   │   ├── encapsulation.py          # Layer-by-layer functions
-│   │   ├── cli.py                    # Shared --layers and mode parsing
-│   │   └── stats.py                  # Payload overhead statistics
-│   ├── eom_server/
-│   │   ├── tcp_server.py             # TCP socket server
-│   │   ├── http_server.py            # HTTP/Flask server
-│   │   └── handlers.py               # Request handlers (echo/chat/file/ping)
-│   ├── eom_client/
-│   │   ├── tcp_client.py             # TCP client
-│   │   ├── http_client.py            # HTTP tunnel client
-│   │   └── ui.py                     # Terminal UI utilities
-│   ├── demo/
-│   │   ├── echo_demo.py              # Echo demonstration
-│   │   ├── chat_demo.py              # Interactive chat
-│   │   ├── file_demo.py              # File transfer
-│   │   └── ping_demo.py              # Latency measurement
-│   └── examples.py                   # Standalone usage examples
-├── tests/
-│   ├── test_protocol.py              # Protocol stack and layer tests
-│   ├── test_integration.py           # TCP server/client integration tests
-│   ├── test_http_server.py           # HTTP server/client tests
-│   └── ...                           # 167 tests collected
-├── brainfuck_rfc.pdf                 # PDF with Brainfuck code
-├── justfile                          # Command shortcuts
-└── pyproject.toml                    # Dependencies
+│   ├── rfc-ethernet-over-macca-v2.0.txt  # Full v2 RFC specification (RFC 9999)
+│   └── rfc-generator-v1.0.bf                  # Brainfuck code that outputs the RFC
+├── src/    
+│   ├── ethernet_over_macca/    
+│   │   ├── protocol_stack.py             # Core EoMacca implementation
+│   │   ├── encapsulation.py              # Layer-by-layer functions
+│   │   ├── cli.py                        # Shared --layers and mode parsing
+│   │   └── stats.py                      # Payload overhead statistics
+│   ├── eom_server/    
+│   │   ├── tcp_server.py                 # TCP socket server
+│   │   ├── http_server.py                # HTTP/Flask server
+│   │   └── handlers.py                   # Request handlers (echo/chat/file/ping)
+│   ├── eom_client/    
+│   │   ├── tcp_client.py                 # TCP client
+│   │   ├── http_client.py                # HTTP tunnel client
+│   │   └── ui.py                         # Terminal UI utilities
+│   ├── demo/    
+│   │   ├── echo_demo.py                  # Echo demonstration
+│   │   ├── chat_demo.py                  # Interactive chat
+│   │   ├── file_demo.py                  # File transfer
+│   │   └── ping_demo.py                  # Latency measurement
+│   └── examples.py                       # Standalone usage examples
+├── tests/    
+│   ├── test_protocol.py                  # Protocol stack and layer tests
+│   ├── test_integration.py               # TCP server/client integration tests
+│   ├── test_http_server.py               # HTTP server/client tests
+│   └── ...                               # other tests
+├── brainfuck_rfc_v1.0.pdf                  # PDF with Brainfuck code
+├── justfile                              # Command shortcuts
+└── pyproject.toml                        # Dependencies
 ```
 
 ## Using the Protocol Stack
@@ -193,8 +194,8 @@ just stats              # Show project statistics
 | `src/eom_client/ui.py` | Rich terminal UI, colored output, statistics display |
 | `src/demo/*_demo.py` | Interactive demonstrations of protocol functionality |
 | `docs/rfc-ethernet-over-macca-v1.0.txt` | Complete v1 RFC specification document |
-| `docs/rfc-generator.bf` | Brainfuck code that outputs the RFC (about 276K) |
-| `brainfuck_rfc.pdf` | PDF containing the Brainfuck code |
+| `docs/rfc-generator-v1.0.bf` | Brainfuck code that outputs the v1 RFC |
+| `brainfuck_rfc_v1.0.pdf` | PDF containing the Brainfuck code for the v1 RFC |
 
 ## Testing
 

@@ -99,12 +99,12 @@ build: generate-brainfuck generate-pdf
 
 # Run a Brainfuck interpreter on the generated code (requires bf package)
 run-brainfuck:
-    ./run-brainfuck.sh
+    ./run_brainfuck.sh
 
 # Clean generated files
 clean:
-    rm -f docs/rfc-generator.bf
-    rm -f brainfuck_rfc.pdf
+    rm -f docs/rfc-generator-v1.0.bf
+    rm -f brainfuck_rfc_v1.0.pdf
     rm -rf .mypy_cache
     rm -rf .pytest_cache
     rm -rf __pycache__
@@ -120,11 +120,11 @@ stats:
     @echo "Project Statistics:"
     @echo "=================="
     @ls -lh docs/rfc-ethernet-over-macca-v1.0.txt | awk '{print "RFC v1 size:     " $$5}'
-    @if [ -f docs/rfc-generator.bf ]; then \
-        ls -lh docs/rfc-generator.bf | awk '{print "BF code size: " $$5}'; \
+    @if [ -f docs/rfc-generator-v1.0.bf ]; then \
+        ls -lh docs/rfc-generator-v1.0.bf | awk '{print "BF code size: " $$5}'; \
     fi
-    @if [ -f brainfuck_rfc.pdf ]; then \
-        ls -lh brainfuck_rfc.pdf | awk '{print "PDF size:     " $$5}'; \
+    @if [ -f brainfuck_rfc_v1.0.pdf ]; then \
+        ls -lh brainfuck_rfc_v1.0.pdf | awk '{print "PDF size:     " $$5}'; \
     fi
     @echo ""
     @echo "Python code:"
